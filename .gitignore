@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+.env
+*.log
+
+# Node.js
+node_modules/
+dist/
+dist-ssr/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# IDEs/Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Docker
+.dockerignore
+
+# Secrets (Docker secrets)
+secrets/
+
+# IDEs / AI Assistants
+.claude/
+.gemini/
+
+# App Specific / Uploads
+backend/app/uploads/
+uploads/
+
+# Python/Testing Caches & DBs
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+*.db
+*.sqlite3
+
+# Node Caches
+.eslintcache
+.stylelintcache

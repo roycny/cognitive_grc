@@ -40,24 +40,15 @@ services:
     container_name: grc_backend
     restart: always
     volumes:
-      - ./backend:/workspace
+      - ./backend:/app
     ports:
       - "8000:8000"
     environment:
-      - DEBUG=true
-      - ENVIRONMENT=development
-      - POSTGRES_USER=grc_user
-      - POSTGRES_PASSWORD=grc_password
-      - POSTGRES_DB=cognitive_grc
-      - POSTGRES_HOST=db
-      - POSTGRES_PORT=5432
       - DATABASE_URL=postgresql://grc_user:grc_password@db:5432/cognitive_grc
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - JWT_SECRET_KEY=replace_this_with_a_secure_random_hex_key_for_development
-      - JWT_ALGORITHM=HS256
-      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY:-replace_this_with_a_secure_random_hex_key_for_development}
+      - ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+      - ENABLE_DOCS=true
     depends_on:
       db:
         condition: service_healthy

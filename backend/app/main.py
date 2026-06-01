@@ -1,0 +1,125 @@
+import os
+import logging
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from fastapi.responses import JSONResponse
+
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+
+from app.rate_limit import limiter
+from app.routers import auth, users
+from app.database import engine, Base
+
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # Create any new tables (e.g. users, audit_logs) that don't exist yet
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception:
+        logger.warning("Table auto-creation failed — will retry on first request")
+    # Pre-warm the DB connection pool so the first user request isn't slow
+    try:
+        with engine.connect():
+            pass
+    except Exception:
+        logger.warning("DB connection pool warmup failed — will retry on first request")
+    yield
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        response.headers["X-XSS-Protection"] = "0"  # Disabled; CSP is the modern defence
+        # Content-Security-Policy: sensible defaults for an API backend.
+        # Tighten (e.g. drop 'unsafe-eval'/'unsafe-inline', add nonces) to match
+        # whatever the frontend you build on top of this actually requires.
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-eval'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: blob:; "
+            "font-src 'self' data:; "
+            "connect-src 'self'; "
+            "frame-ancestors 'none'; "
+            "object-src 'none'; "
+            "base-uri 'self';"
+        )
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        return response
+
+
+# Docs are disabled by default. Set ENABLE_DOCS=true to expose /docs and /redoc
+# (useful in development; should remain false in production).
+_enable_docs = os.getenv("ENABLE_DOCS", "false").lower() == "true"
+
+app = FastAPI(
+    title="Cognitive GRC API",
+    lifespan=lifespan,
+    docs_url="/docs" if _enable_docs else None,
+    redoc_url="/redoc" if _enable_docs else None,
+    openapi_url="/openapi.json" if _enable_docs else None,
+)
+
+# Attach limiter to the app state so routers can import it
+app.state.limiter = limiter
+
+# Register the 429 error handler
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Add SlowAPI middleware to inject X-RateLimit-* response headers
+app.add_middleware(SlowAPIMiddleware)
+
+# Security headers on every response
+app.add_middleware(SecurityHeadersMiddleware)
+
+# ---------------------------------------------------------------------------
+# CORS
+# ---------------------------------------------------------------------------
+# Comma-separated list of allowed origins.  Defaults to localhost dev servers.
+# Override with ALLOWED_ORIGINS env var for staging/production deployments.
+_allowed_origins_env = os.getenv(
+    "ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173,http://localhost:42003,http://127.0.0.1:42003"
+)
+origins = [o.strip() for o in _allowed_origins_env.split(",") if o.strip()]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
+)
+
+# ---------------------------------------------------------------------------
+# Routers
+# ---------------------------------------------------------------------------
+app.include_router(auth.router)
+app.include_router(users.router)
+
+# ---------------------------------------------------------------------------
+# Global exception handler
+# ---------------------------------------------------------------------------
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    # Log the full error details server-side only
+    logger.error(f"Unhandled exception on {request.method} {request.url.path}", exc_info=exc)
+    # Return a generic error message to the client — never expose internal details
+    return JSONResponse(
+        status_code=500,
+        content={"message": "An internal server error occurred. Please try again later."},
+    )
+
+@app.get("/")
+def read_root():
+    return {"message": "Welcome to Cognitive GRC API"}
