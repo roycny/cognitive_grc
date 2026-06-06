@@ -1,8 +1,8 @@
 # Cognitive GRC
 
-A barebones starter for building a Governance, Risk, and Compliance (GRC)
-application. It ships with authentication, user management, and audit logging
-already wired up.
+An AI-driven Governance, Risk, and Compliance (GRC) platform. It provides
+secure authentication, user management, audit & issue tracking, a metrics
+dashboard, activity logging, and configurable AI model settings.
 
 ## Tech Stack
 
@@ -13,42 +13,114 @@ already wired up.
 - **Cache & Sessions:** Redis (rate-limiting, refresh-token store, token revocation)
 - **Authentication:** JWT with BCrypt, Role-Based Access Control (Admin, Editor, Auditor, Viewer)
 - **Security:** Rotating refresh tokens, account lockout, rate limiting via SlowAPI, and security headers
-- **Audit Logging:** Non-blocking asynchronous audit logs
+- **Audit Logging:** Non-blocking asynchronous activity logs
 
 ### Frontend
 - **Framework:** React 18 with TypeScript
 - **Bundler:** Vite
-
-> The frontend is the stock Vite + React starter — no application modules are
-> built yet. Add your own as you develop.
+- **UI:** Material UI (MUI)
+- **Icons:** Lucide React & MUI Icons
+- **Routing & Data:** React Router, Axios
+- **Reporting:** jsPDF & jspdf-autotable
 
 ---
 
-## What's included
+## Features
 
-### Authentication (`/auth`)
+### Authentication & secure sessions
+- JWT **access tokens (30 min)** and **refresh tokens (7 days)** stored exclusively in
+  `httpOnly; SameSite=Lax` cookies — never in `localStorage` or JavaScript-accessible memory.
+- The frontend sends cookies automatically (`withCredentials: true`); no token is read or
+  written client-side.
+- **Transparent silent refresh** via a 401 response interceptor.
+- **Server-side revocation** on logout (Redis), with **rotating refresh tokens** invalidated on every use.
+- Account lockout after repeated failed logins; per-route rate limiting.
+
+### Role-based access control
+Four roles — **Admin, Editor, Auditor, Viewer**. Viewers get read-only access; admin-only
+actions (user management, log access) are enforced on the API.
+
+### Dashboard
+A metrics overview summarizing audit and issue health — active engagements, closed cycles,
+open/past-due findings, total/open issues, high-risk open issues, and overdue items.
+
+### Audit & Exam Tracker
+Create, edit, and delete audits with inline editing, grouped by status. Tracks audit type,
+schedule, request counts, walkthroughs, findings (total / open / past-due), key risks, and
+auditor concerns.
+
+### Issue Tracker
+Create, edit, and delete issues with inline editing, grouping by type, and full-text search.
+Tracks issue type, status, risk rating, owner, identified/target dates, description, and
+remediation plan.
+
+### User Management
+Admin interface to create, update, deactivate, and delete users and assign roles.
+
+### Activity Logging
+An admin log viewer over all recorded actions, with filtering (search, action, user,
+resource type, date range), pagination, and **CSV export**.
+
+### AI Settings
+Choose the AI model used by the platform — a cloud model or a locally hosted model
+auto-discovered from a local LLM runtime — with graceful fallback when none is available.
+
+---
+
+## API Overview
+
+### Authentication — `/auth`
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/auth/token` | Log in (OAuth2 password flow); sets httpOnly cookies and returns tokens |
+| POST | `/auth/token` | Log in (OAuth2 password flow); sets httpOnly cookies |
 | POST | `/auth/refresh` | Exchange a refresh token for a new access token (rotating) |
 | POST | `/auth/logout` | Revoke the current tokens and clear cookies |
 | POST | `/auth/change-password` | Change the signed-in user's password |
 
-### Users (`/users`)
+### Users — `/users`
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/users/me` | Get the signed-in user |
-| POST | `/users/` | Create a user (Admin only) |
 | GET | `/users/` | List users (Admin only) |
+| POST | `/users/` | Create a user (Admin only) |
 | PUT | `/users/{user_id}` | Update a user (Admin only) |
 | DELETE | `/users/{user_id}` | Delete a user (Admin only) |
 
+### Audits — `/audits`
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/audits/` | List audits |
+| POST | `/audits/` | Create an audit |
+| PUT | `/audits/{audit_id}` | Update an audit |
+| DELETE | `/audits/{audit_id}` | Delete an audit |
+
+### Issues — `/issues`
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/issues/` | List issues |
+| POST | `/issues/` | Create an issue |
+| PUT | `/issues/{issue_id}` | Update an issue |
+| DELETE | `/issues/{issue_id}` | Delete an issue |
+
+### Activity Logs — `/audit-logs`
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/audit-logs/` | List logs with filters & pagination (Admin only) |
+| GET | `/audit-logs/export/csv` | Export filtered logs as CSV (Admin only) |
+
+### AI — `/ai`
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/ai/ollama-models` | List locally available AI models (empty if none) |
+
 ### Data models
 - `User` — credentials, role, active flag, and lockout tracking. Roles: `ADMIN`, `EDITOR`, `AUDITOR`, `VIEWER`.
+- `Audit` — audit/exam records: type, schedule, request/finding counts, key risks, concerns.
+- `Issue` — issue records: type, status, risk rating, owner, dates, description, remediation plan.
 - `AuditLog` — append-only activity log written from a background task.
 
-The `users` table is created by the Alembic migration; the `audit_logs` table is
-auto-created at application startup.
+The `users`, `audits`, and `issues` tables are created by Alembic migrations; the
+`audit_logs` table is auto-created at application startup.
 
 ---
 
@@ -62,23 +134,25 @@ auto-created at application startup.
 │   │   ├── database.py             # SQLAlchemy engine/session + Base
 │   │   ├── auth.py                 # JWT, password hashing, current-user deps
 │   │   ├── rate_limit.py           # SlowAPI limiter (Redis-backed)
-│   │   ├── models/                 # SQLAlchemy models (user, audit_log)
-│   │   ├── schemas/                # Pydantic schemas (user, token)
-│   │   ├── routers/                # API routers (auth, users)
+│   │   ├── models/                 # user, audit, issue, audit_log
+│   │   ├── schemas/                # Pydantic schemas
+│   │   ├── routers/                # auth, users, audits, issues, audit_logs, ai
 │   │   └── services/               # audit_log_service
-│   ├── alembic/                    # Migrations (versions/0001_initial_users.py)
+│   ├── alembic/                    # Migrations
 │   ├── create_initial_user.py      # Bootstrap an admin user
 │   ├── requirements.txt
 │   └── Dockerfile
-├── frontend/                       # Stock Vite + React + TypeScript starter
+├── frontend/
+│   └── src/
+│       ├── api/                    # axios client (silent refresh) + helpers
+│       ├── auth/                   # AuthContext (cookie-based session)
+│       ├── components/             # Layout, ProtectedRoute, shared inputs
+│       ├── pages/                  # Login, Dashboard, Audits, Issues,
+│       │                           #   UserManagement, Logging, Settings
+│       ├── theme.ts                # MUI theme
+│       └── types.ts                # shared TypeScript types
 └── docker-compose.yml              # db, redis, backend, frontend
 ```
-
-### Adding a new module
-1. Add a model in `app/models/` (and import it in `app/models/__init__.py`).
-2. Add Pydantic schemas in `app/schemas/`.
-3. Add a router in `app/routers/` and register it in `app/main.py`.
-4. Generate a migration: `alembic revision --autogenerate -m "add <thing>"`, then `alembic upgrade head`.
 
 ---
 
