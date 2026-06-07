@@ -49,6 +49,12 @@ services:
       - SECRET_KEY=${SECRET_KEY:-replace_this_with_a_secure_random_hex_key_for_development}
       - ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
       - ENABLE_DOCS=true
+      # Reach the host's Ollama from inside the container. `localhost` here would
+      # be the container itself, so we target the Docker host gateway instead.
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    extra_hosts:
+      # Make host.docker.internal resolvable on Linux too (built-in on Docker Desktop).
+      - "host.docker.internal:host-gateway"
     depends_on:
       db:
         condition: service_healthy

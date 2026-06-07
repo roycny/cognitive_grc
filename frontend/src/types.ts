@@ -39,3 +39,58 @@ export interface Issue {
   description?: string
   remediation_plan?: string
 }
+
+export interface KRI {
+  id: number
+  kri_code?: string
+  name: string
+  category: string
+  owner?: string
+  frequency: string
+  current_value?: string
+  threshold?: string
+  status: string
+  trend?: string
+  measurement_date?: string
+  description?: string
+}
+
+export interface GlbaControlResponse {
+  id: number
+  control_id: string
+  owner_desc?: string | null
+  owner_evidence?: string | null
+  owner_sign?: string | null
+  test_methods?: string[] | null
+  result?: string | null
+  maturity?: string | null
+  assessor_notes?: string | null
+  assessor_sign?: string | null
+}
+
+export interface GlbaAssessmentSummary {
+  id: number
+  entity?: string | null
+  period?: string | null
+  lead?: string | null
+  status: string
+  created_by?: string | null
+  created_at?: string | null
+  updated_at?: string | null
+  total_controls: number
+  results_recorded: number
+  effective_count: number
+  deficient_count: number
+}
+
+export interface GlbaAssessmentDetail {
+  id: number
+  entity?: string | null
+  period?: string | null
+  lead?: string | null
+  status: string
+  created_by?: string | null
+  created_at?: string | null
+  updated_at?: string | null
+  responses: GlbaControlResponse[]
+}

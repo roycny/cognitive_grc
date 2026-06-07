@@ -1,8 +1,9 @@
 # Cognitive GRC
 
 An AI-driven Governance, Risk, and Compliance (GRC) platform. It provides
-secure authentication, user management, audit & issue tracking, a metrics
-dashboard, activity logging, and configurable AI model settings.
+secure authentication, user management, audit & issue tracking, key risk
+indicator (KRI) monitoring, GLBA information security program assessments, a
+metrics dashboard, activity logging, and configurable AI model settings.
 
 ## Tech Stack
 
@@ -41,8 +42,9 @@ Four roles — **Admin, Editor, Auditor, Viewer**. Viewers get read-only access;
 actions (user management, log access) are enforced on the API.
 
 ### Dashboard
-A metrics overview summarizing audit and issue health — active engagements, closed cycles,
-open/past-due findings, total/open issues, high-risk open issues, and overdue items.
+A metrics overview summarizing audit, issue, and risk health — active engagements, closed
+cycles, open/past-due findings, total/open issues, high-risk open issues, overdue items, and
+a Key Risk Indicator panel that surfaces RAG status by risk area.
 
 ### Audit & Exam Tracker
 Create, edit, and delete audits with inline editing, grouped by status. Tracks audit type,
@@ -53,6 +55,20 @@ auditor concerns.
 Create, edit, and delete issues with inline editing, grouping by type, and full-text search.
 Tracks issue type, status, risk rating, owner, identified/target dates, description, and
 remediation plan.
+
+### KRI Tracker
+Maintain a register of Key Risk Indicators grouped by risk area, with inline editing and
+search. Each indicator tracks owner, measurement frequency, current value, risk-appetite
+threshold, RAG status, trend, and measurement date. Breach and warning counts roll up to the
+dashboard.
+
+### GLBA Assessment
+Conduct GLBA Information Security Program assessments against the Interagency Guidelines
+(§501(b) Safeguards) and Regulation P. A dashboard lists assessments with progress and
+RAG-style outcome counts; each assessment walks 27 controls across 6 domains with separate
+control-owner and assessor sections. Every field **auto-saves** to the database as you edit,
+and scoring rules are enforced (e.g. an *Effective* rating requires Inspection; high-risk
+controls also require Reperformance).
 
 ### User Management
 Admin interface to create, update, deactivate, and delete users and assign roles.
@@ -102,6 +118,24 @@ auto-discovered from a local LLM runtime — with graceful fallback when none is
 | PUT | `/issues/{issue_id}` | Update an issue |
 | DELETE | `/issues/{issue_id}` | Delete an issue |
 
+### KRIs — `/kris`
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/kris/` | List key risk indicators |
+| POST | `/kris/` | Create a KRI |
+| PUT | `/kris/{kri_id}` | Update a KRI |
+| DELETE | `/kris/{kri_id}` | Delete a KRI |
+
+### GLBA Assessments — `/glba`
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/glba/assessments` | List assessments with progress & outcome counts |
+| POST | `/glba/assessments` | Create an assessment (seeds a response row per control) |
+| GET | `/glba/assessments/{id}` | Get an assessment with all control responses |
+| PUT | `/glba/assessments/{id}` | Update assessment header / status |
+| PATCH | `/glba/assessments/{id}/responses/{control_id}` | Auto-save one control's fields |
+| DELETE | `/glba/assessments/{id}` | Delete an assessment |
+
 ### Activity Logs — `/audit-logs`
 | Method | Path | Description |
 |--------|------|-------------|
@@ -117,10 +151,12 @@ auto-discovered from a local LLM runtime — with graceful fallback when none is
 - `User` — credentials, role, active flag, and lockout tracking. Roles: `ADMIN`, `EDITOR`, `AUDITOR`, `VIEWER`.
 - `Audit` — audit/exam records: type, schedule, request/finding counts, key risks, concerns.
 - `Issue` — issue records: type, status, risk rating, owner, dates, description, remediation plan.
+- `KRI` — key risk indicator: risk area, owner, frequency, current value, threshold, RAG status, trend.
+- `GLBAAssessment` / `GLBAControlResponse` — assessment header plus one editable response row per control.
 - `AuditLog` — append-only activity log written from a background task.
 
-The `users`, `audits`, and `issues` tables are created by Alembic migrations; the
-`audit_logs` table is auto-created at application startup.
+The `users`, `audits`, `issues`, `kris`, and GLBA assessment tables are created by Alembic
+migrations; the `audit_logs` table is auto-created at application startup.
 
 ---
 
@@ -134,9 +170,9 @@ The `users`, `audits`, and `issues` tables are created by Alembic migrations; th
 │   │   ├── database.py             # SQLAlchemy engine/session + Base
 │   │   ├── auth.py                 # JWT, password hashing, current-user deps
 │   │   ├── rate_limit.py           # SlowAPI limiter (Redis-backed)
-│   │   ├── models/                 # user, audit, issue, audit_log
+│   │   ├── models/                 # user, audit, issue, kri, glba, audit_log
 │   │   ├── schemas/                # Pydantic schemas
-│   │   ├── routers/                # auth, users, audits, issues, audit_logs, ai
+│   │   ├── routers/                # auth, users, audits, issues, kri, glba, audit_logs, ai
 │   │   └── services/               # audit_log_service
 │   ├── alembic/                    # Migrations
 │   ├── create_initial_user.py      # Bootstrap an admin user
@@ -147,8 +183,9 @@ The `users`, `audits`, and `issues` tables are created by Alembic migrations; th
 │       ├── api/                    # axios client (silent refresh) + helpers
 │       ├── auth/                   # AuthContext (cookie-based session)
 │       ├── components/             # Layout, ProtectedRoute, shared inputs
-│       ├── pages/                  # Login, Dashboard, Audits, Issues,
-│       │                           #   UserManagement, Logging, Settings
+│       ├── data/                   # static reference data (GLBA control template)
+│       ├── pages/                  # Login, Dashboard, Audits, Issues, KRIs,
+│       │                           #   GLBA Assessments, UserManagement, Logging, Settings
 │       ├── theme.ts                # MUI theme
 │       └── types.ts                # shared TypeScript types
 └── docker-compose.yml              # db, redis, backend, frontend

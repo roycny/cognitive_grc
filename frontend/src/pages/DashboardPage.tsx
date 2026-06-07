@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Box, Button, Chip, Skeleton, Stack, Typography } from '@mui/material'
 import type { LucideIcon } from 'lucide-react'
 import {
+  Activity,
   AlertCircle,
   CheckCircle2,
   ClipboardCheck,
@@ -10,12 +11,13 @@ import {
   Info,
   Plus,
   Printer,
+  ShieldAlert,
   Sparkles,
   TriangleAlert,
 } from 'lucide-react'
 import Layout from '../components/Layout'
 import { api } from '../api/client'
-import type { Audit, Issue } from '../types'
+import type { Audit, Issue, KRI } from '../types'
 
 // ---------------------------------------------------------------------------
 // Palette
@@ -69,6 +71,38 @@ function deriveIssueStats(issues: Issue[]) {
     open:        issues.filter(i => i.status === 'Open').length,
     highRiskOpen: issues.filter(i => i.status === 'Open' && i.risk_rating === 'High').length,
     pastDue:     issues.filter(i => i.status === 'Open' && isPastDue(i.target_date)).length,
+  }
+}
+
+interface RiskArea {
+  area: string
+  total: number
+  red: number
+  amber: number
+  green: number
+}
+
+function deriveKriStats(kris: KRI[]) {
+  const areaMap = new Map<string, RiskArea>()
+  for (const k of kris) {
+    const a = areaMap.get(k.category) ?? { area: k.category, total: 0, red: 0, amber: 0, green: 0 }
+    a.total += 1
+    if (k.status === 'Red') a.red += 1
+    else if (k.status === 'Amber') a.amber += 1
+    else a.green += 1
+    areaMap.set(k.category, a)
+  }
+  // Worst-first: areas with breaches, then warnings, then by size.
+  const byArea = [...areaMap.values()].sort(
+    (x, y) => y.red - x.red || y.amber - x.amber || y.total - x.total,
+  )
+  return {
+    total: kris.length,
+    red: kris.filter(k => k.status === 'Red').length,
+    amber: kris.filter(k => k.status === 'Amber').length,
+    green: kris.filter(k => k.status === 'Green').length,
+    breachedAreas: byArea.filter(a => a.red > 0).length,
+    byArea,
   }
 }
 
@@ -159,6 +193,86 @@ function StatGrid({ stats, columns = 2, loading }: { stats: Stat[]; columns?: nu
   )
 }
 
+const RAG_TONE: Record<'Red' | 'Amber' | 'Green', Tone> = { Red: 'red', Amber: 'amber', Green: 'green' }
+
+function RagCount({ n, tone }: { n: number; tone: Tone }) {
+  if (n <= 0) return null
+  const t = TONES[tone]
+  return (
+    <Box
+      component="span"
+      sx={{ minWidth: 22, textAlign: 'center', px: 0.75, py: 0.25, borderRadius: 1, fontSize: 12, fontWeight: 700, bgcolor: t.bg, color: t.fg }}
+    >
+      {n}
+    </Box>
+  )
+}
+
+/** Risk posture organised by risk area (KRI category), worst RAG first. */
+function RiskAreaPanel({ areas, loading, onClick }: { areas: RiskArea[]; loading: boolean; onClick: () => void }) {
+  return (
+    <Box sx={{ bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 3, p: 2.5, height: '100%' }}>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.5 }}>
+        <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
+          Risk Areas — RAG status
+        </Typography>
+        <Stack direction="row" spacing={1} sx={{ fontSize: 11, color: 'text.secondary' }}>
+          <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: TONES.red.fg }} /> Breach
+          </Box>
+          <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: TONES.amber.fg }} /> Warning
+          </Box>
+          <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: TONES.green.fg }} /> OK
+          </Box>
+        </Stack>
+      </Stack>
+
+      {loading ? (
+        <Stack spacing={1}>
+          {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} variant="rounded" height={36} />)}
+        </Stack>
+      ) : areas.length === 0 ? (
+        <Typography variant="caption" color="text.secondary">No KRIs recorded yet.</Typography>
+      ) : (
+        <Stack spacing={1}>
+          {areas.map((a) => {
+            const worst: 'Red' | 'Amber' | 'Green' = a.red > 0 ? 'Red' : a.amber > 0 ? 'Amber' : 'Green'
+            const tone = TONES[RAG_TONE[worst]]
+            return (
+              <Stack
+                key={a.area}
+                direction="row"
+                alignItems="center"
+                spacing={1.5}
+                onClick={onClick}
+                sx={{
+                  borderLeft: '3px solid', borderColor: tone.fg, pl: 1.5, pr: 1, py: 0.75, borderRadius: 1,
+                  cursor: 'pointer', transition: 'background-color 0.15s',
+                  '&:hover': { bgcolor: 'action.hover' },
+                }}
+              >
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>{a.area}</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {a.total} indicator{a.total !== 1 ? 's' : ''}
+                  </Typography>
+                </Box>
+                <Stack direction="row" spacing={0.5}>
+                  <RagCount n={a.red} tone="red" />
+                  <RagCount n={a.amber} tone="amber" />
+                  <RagCount n={a.green} tone="green" />
+                </Stack>
+              </Stack>
+            )
+          })}
+        </Stack>
+      )}
+    </Box>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
@@ -168,17 +282,22 @@ export default function DashboardPage() {
   const [loading, setLoading]   = useState(true)
   const [auditStats, setAuditStats] = useState({ active: 0, closed12M: 0, openFindings: 0, pastDue: 0 })
   const [issueStats, setIssueStats] = useState({ total12M: 0, open: 0, highRiskOpen: 0, pastDue: 0 })
+  const [kriStats, setKriStats] = useState<ReturnType<typeof deriveKriStats>>({
+    total: 0, red: 0, amber: 0, green: 0, breachedAreas: 0, byArea: [],
+  })
 
   useEffect(() => {
     const load = async () => {
       setLoading(true)
       try {
-        const [{ data: audits }, { data: issues }] = await Promise.all([
+        const [{ data: audits }, { data: issues }, { data: kris }] = await Promise.all([
           api.get<Audit[]>('/audits/'),
           api.get<Issue[]>('/issues/'),
+          api.get<KRI[]>('/kris/'),
         ])
         setAuditStats(deriveAuditStats(audits))
         setIssueStats(deriveIssueStats(issues))
+        setKriStats(deriveKriStats(kris))
       } catch (err) {
         console.error('Dashboard fetch failed', err)
       } finally {
@@ -200,6 +319,13 @@ export default function DashboardPage() {
     { title: 'Open Issues',        value: issueStats.open,         subtext: 'Requiring attention',  icon: TriangleAlert, tone: 'amber'  },
     { title: 'High Risk - Open',   value: issueStats.highRiskOpen, subtext: 'High rating issues',   icon: AlertCircle,   tone: 'red',   alarm: issueStats.highRiskOpen > 0 },
     { title: 'Past Due',           value: issueStats.pastDue,      subtext: 'Missed target date',   icon: Clock,         tone: 'orange', alarm: issueStats.pastDue > 0 },
+  ]
+
+  const KRI_STATS: Stat[] = [
+    { title: 'KRIs Tracked',      value: kriStats.total,         subtext: 'Across all risk areas',     icon: Activity,      tone: 'blue'  },
+    { title: 'Breached (Red)',    value: kriStats.red,           subtext: 'Outside risk appetite',     icon: AlertCircle,   tone: 'red',    alarm: kriStats.red > 0 },
+    { title: 'Warning (Amber)',   value: kriStats.amber,         subtext: 'Approaching threshold',     icon: TriangleAlert, tone: 'amber' },
+    { title: 'Within Appetite',   value: kriStats.green,         subtext: 'Green status',              icon: CheckCircle2,  tone: 'green' },
   ]
 
   return (
@@ -249,6 +375,24 @@ export default function DashboardPage() {
           <Box>
             <SectionHeader icon={TriangleAlert} title="Issue Tracking" subtitle="Overview of all tracked issues and their status." onViewAll={() => navigate('/issues')} />
             <StatGrid stats={ISSUE_STATS} loading={loading} />
+          </Box>
+        </Box>
+
+        {/* Key Risk Indicators — focused on risk areas */}
+        <Box>
+          <SectionHeader
+            icon={ShieldAlert}
+            title="Key Risk Indicators"
+            subtitle={
+              kriStats.breachedAreas > 0
+                ? `${kriStats.breachedAreas} risk area${kriStats.breachedAreas !== 1 ? 's' : ''} breaching appetite — RAG posture by area.`
+                : 'Risk posture by area, measured against risk appetite.'
+            }
+            onViewAll={() => navigate('/kris')}
+          />
+          <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', lg: '1.4fr 1fr' } }}>
+            <StatGrid stats={KRI_STATS} columns={2} loading={loading} />
+            <RiskAreaPanel areas={kriStats.byArea} loading={loading} onClick={() => navigate('/kris')} />
           </Box>
         </Box>
       </Stack>

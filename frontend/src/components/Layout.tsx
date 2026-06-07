@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react'
+import { type ReactNode, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Avatar, Badge, Box, Chip, Stack, Tooltip, Typography } from '@mui/material'
 import type { LucideIcon } from 'lucide-react'
@@ -6,6 +6,7 @@ import {
   Bell,
   ChevronDown,
   ClipboardCheck,
+  FileCheck,
   History,
   LayoutDashboard,
   LogOut,
@@ -27,6 +28,8 @@ interface NavItem {
   path?: string
   /** Has sub-modules — shows a chevron. */
   expandable?: boolean
+  /** Nested sub-modules rendered (indented) when the item is expanded. */
+  children?: NavItem[]
 }
 
 interface NavSection {
@@ -43,8 +46,13 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { text: 'Audit & Exam', icon: ClipboardCheck, path: '/audits' },
       { text: 'Issue Tracker', icon: TriangleAlert, path: '/issues' },
-      { text: 'Risk Assessment', icon: ShieldAlert, expandable: true },
-      { text: 'KRI Metrics', icon: ShieldCheck },
+      { text: 'KRI Tracker', icon: ShieldCheck, path: '/kris' },
+      {
+        text: 'Risk Assessment',
+        icon: ShieldAlert,
+        expandable: true,
+        children: [{ text: 'GLBA Assessment', icon: FileCheck, path: '/assessments/glba' }],
+      },
       { text: 'AI Tools', icon: Sparkles, expandable: true },
     ],
   },
@@ -71,12 +79,19 @@ function SidebarItem({
   item,
   active,
   onClick,
+  isChild = false,
+  expanded,
 }: {
   item: NavItem
   active: boolean
   onClick: () => void
+  /** Renders as an indented sub-module. */
+  isChild?: boolean
+  /** When set, the item is an expandable parent — controls the chevron rotation. */
+  expanded?: boolean
 }) {
   const Icon = item.icon
+  const hasChevron = item.expandable || item.children !== undefined
   return (
     <Box
       component="button"
@@ -92,21 +107,31 @@ function SidebarItem({
         display: 'flex',
         alignItems: 'center',
         gap: 1.5,
-        px: 2.5,
-        py: 1.25,
+        pl: isChild ? 5.5 : 2.5,
+        pr: 2.5,
+        py: isChild ? 1 : 1.25,
         font: 'inherit',
         fontWeight: 600,
-        fontSize: 14,
+        fontSize: isChild ? 13 : 14,
         textAlign: 'left',
         transition: 'background-color 0.15s, color 0.15s',
         '&:hover': { bgcolor: active ? 'rgba(53, 56, 205, 0.08)' : 'action.hover', color: active ? 'primary.main' : 'text.primary' },
       }}
     >
-      <Icon size={18} />
+      <Icon size={isChild ? 16 : 18} />
       <Box component="span" sx={{ flexGrow: 1 }}>
         {item.text}
       </Box>
-      {item.expandable && <ChevronDown size={16} style={{ opacity: 0.7 }} />}
+      {hasChevron && (
+        <ChevronDown
+          size={16}
+          style={{
+            opacity: 0.7,
+            transition: 'transform 0.15s',
+            transform: expanded ? 'rotate(180deg)' : 'none',
+          }}
+        />
+      )}
     </Box>
   )
 }
@@ -121,6 +146,16 @@ export default function Layout({
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+
+  // Which expandable parents are open. Start with any whose child route is active.
+  const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
+    const init: Record<string, boolean> = {}
+    for (const section of NAV_SECTIONS)
+      for (const item of section.items)
+        if (item.children?.some((c) => c.path && location.pathname.startsWith(c.path)))
+          init[item.text] = true
+    return init
+  })
 
   const handleLogout = async () => {
     await logout()
@@ -198,16 +233,46 @@ export default function Layout({
                   {section.label}
                 </Typography>
               )}
-              {section.items.map((item) => (
-                <SidebarItem
-                  key={item.text}
-                  item={item}
-                  active={!!item.path && location.pathname === item.path}
-                  onClick={() => {
-                    if (item.path) navigate(item.path)
-                  }}
-                />
-              ))}
+              {section.items.map((item) => {
+                if (item.children) {
+                  const isOpen = expanded[item.text] ?? false
+                  const childActive = item.children.some(
+                    (c) => c.path && location.pathname.startsWith(c.path),
+                  )
+                  return (
+                    <Box key={item.text}>
+                      <SidebarItem
+                        item={item}
+                        active={childActive && !isOpen}
+                        expanded={isOpen}
+                        onClick={() => setExpanded((s) => ({ ...s, [item.text]: !isOpen }))}
+                      />
+                      {isOpen &&
+                        item.children.map((child) => (
+                          <SidebarItem
+                            key={child.text}
+                            item={child}
+                            isChild
+                            active={!!child.path && location.pathname.startsWith(child.path)}
+                            onClick={() => {
+                              if (child.path) navigate(child.path)
+                            }}
+                          />
+                        ))}
+                    </Box>
+                  )
+                }
+                return (
+                  <SidebarItem
+                    key={item.text}
+                    item={item}
+                    active={!!item.path && location.pathname === item.path}
+                    onClick={() => {
+                      if (item.path) navigate(item.path)
+                    }}
+                  />
+                )
+              })}
             </Box>
           ))}
         </Box>

@@ -6,6 +6,9 @@ import IssuesPage from './pages/IssuesPage'
 import UserManagementPage from './pages/UserManagementPage'
 import LoggingPage from './pages/LoggingPage'
 import SettingsPage from './pages/SettingsPage'
+import GLBAAssessmentsPage from './pages/GLBAAssessmentsPage'
+import GLBAAssessmentPage from './pages/GLBAAssessmentPage'
+import KRIsPage from './pages/KRIsPage'
 import ProtectedRoute from './components/ProtectedRoute'
 
 export default function App() {
@@ -57,6 +60,30 @@ export default function App() {
         element={
           <ProtectedRoute>
             <SettingsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/assessments/glba"
+        element={
+          <ProtectedRoute>
+            <GLBAAssessmentsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/assessments/glba/:id"
+        element={
+          <ProtectedRoute>
+            <GLBAAssessmentPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/kris"
+        element={
+          <ProtectedRoute>
+            <KRIsPage />
           </ProtectedRoute>
         }
       />
