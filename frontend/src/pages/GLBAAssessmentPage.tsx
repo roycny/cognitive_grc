@@ -14,14 +14,13 @@ import {
   Paper,
   Select,
   Stack,
-  TextField,
   Typography,
 } from '@mui/material'
 import type { SelectChangeEvent } from '@mui/material'
-import { ArrowLeft, Check, CircleAlert, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, Check, CircleAlert, FileText, ShieldCheck } from 'lucide-react'
 import Layout from '../components/Layout'
 import DebouncedTextField from '../components/DebouncedTextField'
-import { api } from '../api/client'
+import { api, glbaReportUrl } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
 import {
   GLBA_CONTROLS,
@@ -157,7 +156,16 @@ export default function GLBAAssessmentPage() {
           <Button startIcon={<ArrowLeft size={18} />} onClick={() => navigate('/assessments/glba')} color="inherit">
             All assessments
           </Button>
-          <SaveIndicator state={saveState} />
+          <Stack direction="row" alignItems="center" spacing={2}>
+            <SaveIndicator state={saveState} />
+            <Button
+              variant="outlined"
+              startIcon={<FileText size={18} />}
+              onClick={() => window.open(glbaReportUrl(assessment.id), '_blank', 'noopener')}
+            >
+              Generate report
+            </Button>
+          </Stack>
         </Stack>
 
         {/* Header card */}

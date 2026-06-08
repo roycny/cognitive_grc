@@ -21,9 +21,9 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import { Plus, ShieldCheck, Trash2 } from 'lucide-react'
+import { FileText, Plus, ShieldCheck, Trash2 } from 'lucide-react'
 import Layout from '../components/Layout'
-import { api } from '../api/client'
+import { api, glbaReportUrl } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
 import type { GlbaAssessmentDetail, GlbaAssessmentSummary } from '../types'
 
@@ -223,6 +223,13 @@ export default function GLBAAssessmentsPage() {
                         <TableCell>{a.deficient_count}</TableCell>
                         <TableCell>{formatDate(a.created_at)}</TableCell>
                         <TableCell align="right" onClick={(e) => e.stopPropagation()}>
+                          <IconButton
+                            size="small"
+                            title="Generate report"
+                            onClick={() => window.open(glbaReportUrl(a.id), '_blank', 'noopener')}
+                          >
+                            <FileText size={16} />
+                          </IconButton>
                           {!isViewer && (
                             <IconButton size="small" color="error" onClick={() => setDeleteId(a.id)}>
                               <Trash2 size={16} />

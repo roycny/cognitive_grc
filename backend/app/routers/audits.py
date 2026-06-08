@@ -18,6 +18,11 @@ def _require_editor(current_user: User) -> None:
         raise HTTPException(status_code=403, detail="Viewers cannot modify audits")
 
 
+def _require_admin(current_user: User) -> None:
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Only administrators can delete records")
+
+
 @router.get("/", response_model=List[AuditResponse])
 def list_audits(
     skip: int = 0,
@@ -62,7 +67,13 @@ def update_audit(
     if not db_audit:
         raise HTTPException(status_code=404, detail="Audit not found")
 
-    for field, value in audit_update.model_dump(exclude_unset=True).items():
+    # H9: Whitelist updateable fields to prevent mass assignment
+    allowed_fields = {
+        "audit_code", "audit_type", "title", "start_date", "end_date", "status",
+        "requests_total", "requests_open", "walkthroughs", "total_findings",
+        "open_findings", "past_due", "key_risks", "auditor_concerns"
+    }
+    for field, value in audit_update.model_dump(exclude_unset=True, include=allowed_fields).items():
         setattr(db_audit, field, value)
 
     db.commit()
@@ -82,7 +93,7 @@ def delete_audit(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    _require_editor(current_user)
+    _require_admin(current_user)
     db_audit = db.query(Audit).filter(Audit.id == audit_id).first()
     if not db_audit:
         raise HTTPException(status_code=404, detail="Audit not found")

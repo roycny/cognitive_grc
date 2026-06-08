@@ -56,6 +56,25 @@ def update_user(user_id: int, user_update: UserUpdate, request: Request, bg: Bac
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
     
+    # H11: Prevent demoting/deactivating the last active administrator
+    is_demoting_or_deactivating_admin = (
+        db_user.role == UserRole.ADMIN 
+        and (
+            (user_update.role and user_update.role != UserRole.ADMIN) 
+            or (user_update.is_active is False)
+        )
+    )
+    if is_demoting_or_deactivating_admin:
+        active_admins_count = db.query(User).filter(
+            User.role == UserRole.ADMIN,
+            User.is_active == True
+        ).count()
+        if active_admins_count <= 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot demote or deactivate the last active administrator."
+            )
+
     if user_update.email:
         db_user.email = user_update.email
     if user_update.role:
@@ -80,6 +99,18 @@ def delete_user(user_id: int, request: Request, bg: BackgroundTasks, db: Session
     # Prevent deleting yourself
     if db_user.id == current_user.id:
          raise HTTPException(status_code=400, detail="Cannot delete your own account")
+
+    # H11: Prevent deleting the last active administrator
+    if db_user.role == UserRole.ADMIN and db_user.is_active:
+        active_admins_count = db.query(User).filter(
+            User.role == UserRole.ADMIN,
+            User.is_active == True
+        ).count()
+        if active_admins_count <= 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot delete the last active administrator."
+            )
 
     deleted_username = db_user.username
     db.delete(db_user)

@@ -1,4 +1,5 @@
 import os
+import secrets
 
 from fastapi import APIRouter, BackgroundTasks, Cookie, Depends, HTTPException, Response, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
@@ -27,6 +28,7 @@ from app.auth import (
     get_current_active_user,
     get_password_hash,
     redis_client,
+    revoke_all_user_refresh_tokens,
 )
 from app.schemas.token import Token, TokenRefreshResponse
 from app.schemas.user import UserPasswordChange
@@ -42,15 +44,18 @@ router = APIRouter(
 MAX_FAILED_ATTEMPTS = 5
 LOCKOUT_DURATION_MINUTES = 15
 
-# Set to true in production (HTTPS) so the Secure cookie flag is applied.
-# Override with SECURE_COOKIES=true env var.
-_SECURE_COOKIES: bool = os.getenv("SECURE_COOKIES", "false").lower() == "true"
+# Secure flag defaults to True — cookies are only sent over HTTPS.
+# Set SECURE_COOKIES=false explicitly for local HTTP development.
+_SECURE_COOKIES: bool = os.getenv("SECURE_COOKIES", "true").lower() != "false"
 
 _COOKIE_KWARGS = dict(
     httponly=True,
     secure=_SECURE_COOKIES,
     samesite="lax",
 )
+
+# Pre-computed dummy hash to prevent timing attacks on username enumeration
+_DUMMY_HASH = get_password_hash("dummy_password_for_timing")
 
 
 def _set_auth_cookies(response: Response, access_token: str, refresh_token: str) -> None:
@@ -62,13 +67,25 @@ def _set_auth_cookies(response: Response, access_token: str, refresh_token: str)
     response.set_cookie(
         "refresh_token", refresh_token,
         max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+        path="/auth/refresh",
         **_COOKIE_KWARGS,
+    )
+    # CSRF double-submit cookie: set a random token in a non-httpOnly cookie
+    # so the frontend JavaScript can read it and echo it as X-CSRF-Token header.
+    csrf_token = secrets.token_hex(32)
+    response.set_cookie(
+        "csrf_token", csrf_token,
+        max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+        httponly=False,
+        secure=_SECURE_COOKIES,
+        samesite="lax",
     )
 
 
 def _clear_auth_cookies(response: Response) -> None:
-    response.delete_cookie("access_token", httponly=True, samesite="lax")
-    response.delete_cookie("refresh_token", httponly=True, samesite="lax")
+    response.delete_cookie("access_token", **_COOKIE_KWARGS)
+    response.delete_cookie("refresh_token", path="/auth/refresh", **_COOKIE_KWARGS)
+    response.delete_cookie("csrf_token", httponly=False, secure=_SECURE_COOKIES, samesite="lax")
 
 
 class RefreshRequest(BaseModel):
@@ -83,6 +100,7 @@ async def login_for_access_token(request: Request, response: Response, bg: Backg
     user = db.query(User).filter(User.username == form_data.username).first()
 
     if not user:
+        verify_password(form_data.password, _DUMMY_HASH)
         emit_audit_log(form_data.username, "LOGIN_FAILURE", detail="Unknown username", ip_address=get_client_ip(request))
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -110,11 +128,11 @@ async def login_for_access_token(request: Request, response: Response, bg: Backg
                 unlock_user_tokens(user.username)
                 db.commit()
         except ValueError:
-            # Invalid locked_until value — clear it
-            user.locked_until = None
-            user.failed_login_attempts = 0
-            unlock_user_tokens(user.username)
-            db.commit()
+            # Invalid locked_until value — fail secure to prevent lockout bypass
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Account is locked due to too many failed login attempts. Contact an administrator.",
+            )
 
     if not verify_password(form_data.password, user.hashed_password):
         # Increment failed login attempts
@@ -276,6 +294,7 @@ async def change_password(
     # Update password
     current_user.hashed_password = get_password_hash(password_data.new_password)
     db.add(current_user)
+    revoke_all_user_refresh_tokens(current_user.username)
     db.commit()
 
     bg.add_task(emit_audit_log, current_user.username, "PASSWORD_CHANGE", ip_address=get_client_ip(request))

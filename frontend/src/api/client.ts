@@ -18,6 +18,38 @@ export const api = axios.create({
   withCredentials: true,
 })
 
+/**
+ * Read a cookie value by name.  Used to extract the CSRF double-submit token
+ * (set as a non-httpOnly cookie by the backend on login / refresh).
+ */
+function getCookie(name: string): string | undefined {
+  const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`))
+  return match ? decodeURIComponent(match[1]) : undefined
+}
+
+/**
+ * CSRF double-submit: attach the csrf_token cookie value as the X-CSRF-Token
+ * header on every state-changing request (POST, PUT, PATCH, DELETE).
+ */
+api.interceptors.request.use((config) => {
+  const method = config.method?.toUpperCase()
+  if (method && method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
+    const csrfToken = getCookie('csrf_token')
+    if (csrfToken) {
+      config.headers['X-CSRF-Token'] = csrfToken
+    }
+  }
+  return config
+})
+
+/**
+ * Absolute URL of the GLBA assessment report endpoint. Opened as a top-level
+ * navigation (new tab), so the browser sends the httpOnly auth cookie
+ * automatically — no token handling in JS.
+ */
+export const glbaReportUrl = (assessmentId: number): string =>
+  `${baseURL.replace(/\/$/, '')}/glba/assessments/${assessmentId}/report`
+
 /** Fired when a refresh fails — the app uses this to drop back to /login. */
 export const SESSION_EXPIRED_EVENT = 'auth:session-expired'
 

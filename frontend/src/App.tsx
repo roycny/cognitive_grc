@@ -42,7 +42,7 @@ export default function App() {
       <Route
         path="/users"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['ADMIN']}>
             <UserManagementPage />
           </ProtectedRoute>
         }
@@ -50,7 +50,7 @@ export default function App() {
       <Route
         path="/logging"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['ADMIN']}>
             <LoggingPage />
           </ProtectedRoute>
         }

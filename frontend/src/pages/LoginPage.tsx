@@ -48,6 +48,11 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const fillDemo = () => {
+    setUsername(DEMO_USERNAME)
+    setPassword(DEMO_PASSWORD)
+  }
+
   // Already authenticated → straight to the dashboard.
   if (user) {
     return <Navigate to="/dashboard" replace />
@@ -70,11 +75,6 @@ export default function LoginPage() {
     } finally {
       setSubmitting(false)
     }
-  }
-
-  const fillDemo = () => {
-    setUsername(DEMO_USERNAME)
-    setPassword(DEMO_PASSWORD)
   }
 
   return (

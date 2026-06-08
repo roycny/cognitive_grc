@@ -218,7 +218,7 @@ cp frontend/.env.example frontend/.env
 - `ADMIN_PASSWORD`: Used by `create_initial_user.py` to bootstrap the first admin.
 
 **Frontend (`frontend/.env`):**
-- `VITE_API_URL`: Backend base URL (default `http://localhost:8000`).
+- `VITE_API_URL`: Backend base URL (default `http://localhost:8080` under Docker Compose, or `http://localhost:8000` for native dev).
 
 ---
 
@@ -230,7 +230,7 @@ Stand up PostgreSQL, Redis, the backend API, and the Vite frontend:
 docker compose up --build
 ```
 
-- **Backend API:** http://localhost:8000 — Swagger at http://localhost:8000/docs (when `ENABLE_DOCS=true`)
+- **Backend API:** http://localhost:8080 — Swagger at http://localhost:8080/docs (when `ENABLE_DOCS=true`)
 - **Frontend App:** http://localhost:5173
 
 The backend runs `alembic upgrade head` automatically on start.

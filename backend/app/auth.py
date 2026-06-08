@@ -79,6 +79,14 @@ def revoke_refresh_token(jti: str) -> None:
     redis_client.delete(f"refresh:{jti}")
 
 
+def revoke_all_user_refresh_tokens(username: str) -> None:
+    """Revoke all active refresh tokens for a user by scanning and deleting matching keys in Redis."""
+    for key in redis_client.scan_iter("refresh:*"):
+        stored_username = redis_client.get(key)
+        if stored_username == username:
+            redis_client.delete(key)
+
+
 def _is_access_token_revoked(jti: str) -> bool:
     return redis_client.exists(f"revoked_access:{jti}") > 0
 

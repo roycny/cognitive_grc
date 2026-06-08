@@ -18,6 +18,11 @@ def _require_editor(current_user: User) -> None:
         raise HTTPException(status_code=403, detail="Viewers cannot modify KRIs")
 
 
+def _require_admin(current_user: User) -> None:
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Only administrators can delete records")
+
+
 @router.get("/", response_model=List[KRIResponse])
 def list_kris(
     skip: int = 0,
@@ -62,7 +67,12 @@ def update_kri(
     if not db_kri:
         raise HTTPException(status_code=404, detail="KRI not found")
 
-    for field, value in kri_update.model_dump(exclude_unset=True).items():
+    # H9: Whitelist updateable fields to prevent mass assignment
+    allowed_fields = {
+        "kri_code", "name", "category", "owner", "frequency",
+        "current_value", "threshold", "status", "trend", "measurement_date", "description"
+    }
+    for field, value in kri_update.model_dump(exclude_unset=True, include=allowed_fields).items():
         setattr(db_kri, field, value)
 
     db.commit()
@@ -82,7 +92,7 @@ def delete_kri(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    _require_editor(current_user)
+    _require_admin(current_user)
     db_kri = db.query(KRI).filter(KRI.id == kri_id).first()
     if not db_kri:
         raise HTTPException(status_code=404, detail="KRI not found")

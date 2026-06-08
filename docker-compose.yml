@@ -42,13 +42,14 @@ services:
     volumes:
       - ./backend:/app
     ports:
-      - "8000:8000"
+      - "8080:8000"
     environment:
       - DATABASE_URL=postgresql://grc_user:grc_password@db:5432/cognitive_grc
       - REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=${SECRET_KEY:-replace_this_with_a_secure_random_hex_key_for_development}
       - ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
       - ENABLE_DOCS=true
+      - SECURE_COOKIES=false
       # Reach the host's Ollama from inside the container. `localhost` here would
       # be the container itself, so we target the Docker host gateway instead.
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
@@ -73,7 +74,7 @@ services:
     ports:
       - "5173:5173"
     environment:
-      - VITE_API_URL=http://localhost:8000
+      - VITE_API_URL=http://localhost:8080
     depends_on:
       - backend
 

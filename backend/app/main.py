@@ -59,6 +59,34 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
+# ---------------------------------------------------------------------------
+# CSRF protection — double-submit cookie pattern
+# ---------------------------------------------------------------------------
+# Safe (read-only) methods and auth endpoints that *issue* cookies are exempt.
+_CSRF_SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+_CSRF_EXEMPT_PATHS = {"/auth/token", "/auth/refresh"}
+
+
+class CSRFMiddleware(BaseHTTPMiddleware):
+    """Validate that the X-CSRF-Token header matches the csrf_token cookie
+    on every state-changing request.  This prevents cross-site form
+    submissions from exploiting the httpOnly auth cookies."""
+
+    async def dispatch(self, request: Request, call_next):
+        if (
+            request.method not in _CSRF_SAFE_METHODS
+            and request.url.path not in _CSRF_EXEMPT_PATHS
+        ):
+            cookie_token = request.cookies.get("csrf_token")
+            header_token = request.headers.get("x-csrf-token")
+            if not cookie_token or not header_token or cookie_token != header_token:
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": "CSRF validation failed"},
+                )
+        return await call_next(request)
+
+
 # Docs are disabled by default. Set ENABLE_DOCS=true to expose /docs and /redoc
 # (useful in development; should remain false in production).
 _enable_docs = os.getenv("ENABLE_DOCS", "false").lower() == "true"
@@ -83,6 +111,9 @@ app.add_middleware(SlowAPIMiddleware)
 # Security headers on every response
 app.add_middleware(SecurityHeadersMiddleware)
 
+# CSRF double-submit cookie validation
+app.add_middleware(CSRFMiddleware)
+
 # ---------------------------------------------------------------------------
 # CORS
 # ---------------------------------------------------------------------------
@@ -98,7 +129,7 @@ app.add_middleware(
     allow_origins=origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "Accept"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "X-CSRF-Token"],
 )
 
 # ---------------------------------------------------------------------------
