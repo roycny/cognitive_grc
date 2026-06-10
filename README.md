@@ -41,6 +41,14 @@ metrics dashboard, activity logging, and configurable AI model settings.
 Four roles — **Admin, Editor, Auditor, Viewer**. Viewers get read-only access; admin-only
 actions (user management, log access) are enforced on the API.
 
+> **Tenancy model (accepted design):** Cognitive GRC is **single-tenant**. All
+> authenticated users belong to one trusted organization and can see every
+> audit, issue, KRI, and GLBA assessment — access is governed by *role*
+> (Viewer/Editor/Auditor/Admin), not by record ownership. There is deliberately
+> no per-record or per-org scoping. **Do not deploy a shared instance across
+> mutually-untrusting tenants** without first adding an `organization_id` column
+> to the data models and scoping every query to the caller's org.
+
 ### Dashboard
 A metrics overview summarizing audit, issue, and risk health — active engagements, closed
 cycles, open/past-due findings, total/open issues, high-risk open issues, overdue items, and

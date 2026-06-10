@@ -39,6 +39,9 @@ services:
       dockerfile: Dockerfile
     container_name: grc_backend
     restart: always
+    # Dev-only override: enable hot-reload against the bind-mounted source.
+    # The image itself ships a production-safe command (no --reload, multi-worker).
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/app"
     volumes:
       - ./backend:/app
     ports:

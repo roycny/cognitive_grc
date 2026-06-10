@@ -64,6 +64,9 @@ def list_assessments(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
+    # H8 (accepted): single-tenant design — all authenticated users share one
+    # trusted org and may read every record. Access is by role, not ownership.
+    # Add organization_id scoping here before any multi-tenant deployment.
     assessments = db.query(GLBAAssessment).order_by(GLBAAssessment.id.desc()).all()
     return [_summarize(a) for a in assessments]
 

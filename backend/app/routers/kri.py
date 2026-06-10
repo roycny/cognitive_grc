@@ -30,6 +30,9 @@ def list_kris(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
+    # H8 (accepted): single-tenant design — all authenticated users share one
+    # trusted org and may read every record. Access is by role, not ownership.
+    # Add organization_id scoping here before any multi-tenant deployment.
     return db.query(KRI).order_by(KRI.id.desc()).offset(skip).limit(limit).all()
 
 

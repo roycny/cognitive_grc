@@ -14,5 +14,8 @@ USER app
 
 EXPOSE 8000
 
-# Apply migrations, then start the API (reload for development)
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/app"]
+# Apply migrations, then start the API.
+# Production-safe by default: no --reload (which enables arbitrary code execution
+# if an attacker can write into the container) and multiple workers.
+# docker-compose overrides this command with --reload for local development.
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4"]
