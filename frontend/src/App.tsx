@@ -9,6 +9,8 @@ import SettingsPage from './pages/SettingsPage'
 import GLBAAssessmentsPage from './pages/GLBAAssessmentsPage'
 import GLBAAssessmentPage from './pages/GLBAAssessmentPage'
 import KRIsPage from './pages/KRIsPage'
+import SCAAgent from './pages/SCAAgent'
+import SIEMScriptAgent from './pages/SIEMScriptAgent'
 import ProtectedRoute from './components/ProtectedRoute'
 
 export default function App() {
@@ -84,6 +86,22 @@ export default function App() {
         element={
           <ProtectedRoute>
             <KRIsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ai-tools/sca-agent"
+        element={
+          <ProtectedRoute>
+            <SCAAgent />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ai-tools/siem-agent"
+        element={
+          <ProtectedRoute>
+            <SIEMScriptAgent />
           </ProtectedRoute>
         }
       />

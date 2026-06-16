@@ -12,3 +12,7 @@ email-validator==2.2.0
 redis==5.1.1
 python-dotenv==1.0.1
 slowapi==0.1.9
+# AI Tools — SCA Agent
+reportlab==4.2.5            # PDF report generation
+pypdf==5.1.0                # extract text from uploaded project docs (Project Risk Assessment)
+google-generativeai==0.8.3  # optional cloud (Gemini) AI provider; Ollama needs no key

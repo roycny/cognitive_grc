@@ -4,6 +4,7 @@ import { Avatar, Badge, Box, Chip, Stack, Tooltip, Typography } from '@mui/mater
 import type { LucideIcon } from 'lucide-react'
 import {
   Bell,
+  Boxes,
   ChevronDown,
   ClipboardCheck,
   FileCheck,
@@ -13,6 +14,7 @@ import {
   RefreshCw,
   Settings,
   ShieldAlert,
+  TerminalSquare,
   ShieldCheck,
   Sparkles,
   TriangleAlert,
@@ -53,7 +55,15 @@ const NAV_SECTIONS: NavSection[] = [
         expandable: true,
         children: [{ text: 'GLBA Assessment', icon: FileCheck, path: '/assessments/glba' }],
       },
-      { text: 'AI Tools', icon: Sparkles, expandable: true },
+      {
+        text: 'AI Tools',
+        icon: Sparkles,
+        expandable: true,
+        children: [
+          { text: 'SCA Agent', icon: Boxes, path: '/ai-tools/sca-agent' },
+          { text: 'SIEM Script Agent', icon: TerminalSquare, path: '/ai-tools/siem-agent' },
+        ],
+      },
     ],
   },
   {

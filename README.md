@@ -5,6 +5,11 @@ secure authentication, user management, audit & issue tracking, key risk
 indicator (KRI) monitoring, GLBA information security program assessments, a
 metrics dashboard, activity logging, and configurable AI model settings.
 
+It also ships a suite of **AI Tools** — a SIEM/SOC detection-script agent, a
+Software Composition Analysis (SCA) agent backed by OSV-Scanner, and a quantified
+project risk assessment module — all driven by either a locally hosted Ollama
+model or a cloud model, with graceful fallback when no provider is configured.
+
 ## Tech Stack
 
 ### Backend
@@ -89,6 +94,33 @@ resource type, date range), pagination, and **CSV export**.
 Choose the AI model used by the platform — a cloud model or a locally hosted model
 auto-discovered from a local LLM runtime — with graceful fallback when none is available.
 
+### AI Tools — SIEM Script Agent
+Generate production-ready SIEM/SOC detection content from a natural-language goal:
+**IBM QRadar AQL queries**, **Python API scripts**, **YARA rules**, or **Sigma rules**.
+Supply the investigation goal, timeframe, log sources, and optional IOCs, and the agent
+returns the raw artifact with inline comments. A chat assistant then **refines** the
+generated script conversationally while keeping it syntactically valid. Available to
+Editors and Admins; rate-limited per route.
+
+### AI Tools — SCA Agent (Software Composition Analysis)
+Upload dependency manifests / lockfiles (`pom.xml`, `requirements.txt`, `yarn.lock`,
+`poetry.lock`, `package-lock.json`, `composer.lock`) or a GitHub SPDX SBOM (`.json`) and
+scan them with **Google OSV-Scanner**. The AI then triages the findings — filtering noise
+and dev-only dependencies, flagging known-exploited CVEs, and analyzing exploit
+conditions — producing an executive summary, an overall risk level, prioritized
+recommendations, and a per-CVE triage table (*Must Fix* / *Verify Reachability* /
+*Ignore-Accept Risk*). Results can be **exported as a styled PDF** or **saved to an
+inventory** of reports for later review.
+
+### AI Tools — Project Risk Assessment
+Run a quantified, AI-driven risk assessment over project documentation. Upload project
+docs (PDF / TXT / MD) or paste text; the AI identifies discrete risks across categories
+(Security, Operational, Compliance, Financial, Schedule, Third-Party, Data Privacy) and
+scores each on a **5×5 Likelihood × Impact matrix** for both inherent and residual risk,
+proposing existing controls, recommended mitigations, owners, and action items. The
+register is fully editable, ratings are recomputed server-side from the numeric scores so
+they always match the matrix, and the assessment can be **exported as a PDF report**.
+
 ---
 
 ## API Overview
@@ -155,16 +187,43 @@ auto-discovered from a local LLM runtime — with graceful fallback when none is
 |--------|------|-------------|
 | GET | `/ai/ollama-models` | List locally available AI models (empty if none) |
 
+### AI Tools — `/ai-tools` (SIEM & SCA agents)
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/ai-tools/siem-agent/generate` | Generate a SIEM detection script from a goal |
+| POST | `/ai-tools/siem-agent/refine` | Refine a generated script via the chat assistant |
+| POST | `/ai-tools/sca-agent/scan` | Scan uploaded manifests/lockfiles with OSV-Scanner |
+| POST | `/ai-tools/sca-agent/analyze` | AI triage of scan findings (summary, risk, findings) |
+| POST | `/ai-tools/sca-agent/report` | Generate and download a PDF SCA report |
+| POST | `/ai-tools/sca-agent/save` | Save an SCA report to the inventory |
+| GET | `/ai-tools/sca-agent/history` | List saved SCA reports |
+| GET | `/ai-tools/sca-agent/history/{report_id}` | Get a saved SCA report |
+| DELETE | `/ai-tools/sca-agent/history/{report_id}` | Delete a saved SCA report |
+
+### Project Risk Assessments — `/project-risk`
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/project-risk/assessments` | List assessments with overall ratings & open-action counts |
+| POST | `/project-risk/assessments` | Create an assessment |
+| GET | `/project-risk/assessments/{id}` | Get an assessment with its full risk register |
+| PUT | `/project-risk/assessments/{id}` | Update the header and/or replace the register |
+| DELETE | `/project-risk/assessments/{id}` | Delete an assessment (Admin only) |
+| POST | `/project-risk/assessments/{id}/ai-assess` | Run an AI assessment over docs/pasted text |
+| POST | `/project-risk/assessments/{id}/report` | Generate and download a PDF risk report |
+
 ### Data models
 - `User` — credentials, role, active flag, and lockout tracking. Roles: `ADMIN`, `EDITOR`, `AUDITOR`, `VIEWER`.
 - `Audit` — audit/exam records: type, schedule, request/finding counts, key risks, concerns.
 - `Issue` — issue records: type, status, risk rating, owner, dates, description, remediation plan.
 - `KRI` — key risk indicator: risk area, owner, frequency, current value, threshold, RAG status, trend.
 - `GLBAAssessment` / `GLBAControlResponse` — assessment header plus one editable response row per control.
+- `SCAReport` — saved Software Composition Analysis report: app name, risk level, AI summary, raw scan results, recommendations, and per-CVE findings.
+- `ProjectRiskAssessment` / `ProjectRisk` — risk assessment header plus one row per identified risk (inherent/residual likelihood & impact, ratings, controls, mitigation, owner, action items).
 - `AuditLog` — append-only activity log written from a background task.
 
-The `users`, `audits`, `issues`, `kris`, and GLBA assessment tables are created by Alembic
-migrations; the `audit_logs` table is auto-created at application startup.
+The `users`, `audits`, `issues`, `kris`, GLBA assessment, SCA report, and project risk
+tables are created by Alembic migrations; the `audit_logs` table is auto-created at
+application startup.
 
 ---
 
@@ -178,10 +237,11 @@ migrations; the `audit_logs` table is auto-created at application startup.
 │   │   ├── database.py             # SQLAlchemy engine/session + Base
 │   │   ├── auth.py                 # JWT, password hashing, current-user deps
 │   │   ├── rate_limit.py           # SlowAPI limiter (Redis-backed)
-│   │   ├── models/                 # user, audit, issue, kri, glba, audit_log
+│   │   ├── models/                 # user, audit, issue, kri, glba, sca, project_risk, audit_log
 │   │   ├── schemas/                # Pydantic schemas
-│   │   ├── routers/                # auth, users, audits, issues, kri, glba, audit_logs, ai
-│   │   └── services/               # audit_log_service
+│   │   ├── routers/                # auth, users, audits, issues, kri, glba, audit_logs,
+│   │   │                           #   ai, ai_tools (SIEM/SCA), project_risk
+│   │   └── services/               # audit_log_service, ai_service, project_risk_report
 │   ├── alembic/                    # Migrations
 │   ├── create_initial_user.py      # Bootstrap an admin user
 │   ├── requirements.txt
@@ -193,7 +253,8 @@ migrations; the `audit_logs` table is auto-created at application startup.
 │       ├── components/             # Layout, ProtectedRoute, shared inputs
 │       ├── data/                   # static reference data (GLBA control template)
 │       ├── pages/                  # Login, Dashboard, Audits, Issues, KRIs,
-│       │                           #   GLBA Assessments, UserManagement, Logging, Settings
+│       │                           #   GLBA Assessments, SIEM Script Agent, SCA Agent,
+│       │                           #   Project Risk Assessments, UserManagement, Logging, Settings
 │       ├── theme.ts                # MUI theme
 │       └── types.ts                # shared TypeScript types
 └── docker-compose.yml              # db, redis, backend, frontend
@@ -207,6 +268,8 @@ migrations; the `audit_logs` table is auto-created at application startup.
 - **Docker & Docker Compose** (recommended)
 - **Node.js** (v18+) & **npm** (for local frontend development)
 - **Python 3.11+** & **pip** (for local backend development)
+- **Google OSV-Scanner** on the `PATH` (required by the SCA Agent for native dev; already bundled in the backend Docker image)
+- **Ollama** (optional) for the AI Tools when running a local model; alternatively configure `GEMINI_API_KEY` for the cloud provider
 
 ### Configuration
 
@@ -224,6 +287,8 @@ cp frontend/.env.example frontend/.env
 - `ALLOWED_ORIGINS`: Comma-separated CORS origins (defaults to the local Vite dev server).
 - `ENABLE_DOCS`: Set to `true` to expose `/docs`, `/redoc`, and `/openapi.json` (development only).
 - `ADMIN_PASSWORD`: Used by `create_initial_user.py` to bootstrap the first admin.
+- `OLLAMA_BASE_URL`: Base URL of the local Ollama runtime used by the AI Tools (default `http://localhost:11434`).
+- `GEMINI_API_KEY`: Optional. Enables the cloud AI provider for the AI Tools. Under Docker Compose it is supplied as a secret (`./secrets/gemini_api_key.txt`, git-ignored) rather than an env var. When unset, the tools use a local Ollama model and degrade gracefully.
 
 **Frontend (`frontend/.env`):**
 - `VITE_API_URL`: Backend base URL (default `http://localhost:8080` under Docker Compose, or `http://localhost:8000` for native dev).

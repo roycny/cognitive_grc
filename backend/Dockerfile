@@ -2,6 +2,21 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# Install Google OSV-Scanner (used by the AI Tools SCA Agent). TARGETARCH is
+# provided automatically by BuildKit (amd64 / arm64), matching the release asset
+# naming so the image builds correctly on both Intel and Apple Silicon hosts.
+ARG TARGETARCH
+ARG OSV_SCANNER_VERSION=v2.3.5
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends curl ca-certificates; \
+    curl -fsSL -o /usr/local/bin/osv-scanner \
+        "https://github.com/google/osv-scanner/releases/download/${OSV_SCANNER_VERSION}/osv-scanner_linux_${TARGETARCH}"; \
+    chmod +x /usr/local/bin/osv-scanner; \
+    osv-scanner --version; \
+    apt-get purge -y --auto-remove curl; \
+    rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 

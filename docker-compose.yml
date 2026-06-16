@@ -59,6 +59,10 @@ services:
     extra_hosts:
       # Make host.docker.internal resolvable on Linux too (built-in on Docker Desktop).
       - "host.docker.internal:host-gateway"
+    secrets:
+      # Mounted read-only at /run/secrets/gemini_api_key; read by ai_service.
+      # Backed by ./secrets/gemini_api_key.txt, which is git-ignored.
+      - gemini_api_key
     depends_on:
       db:
         condition: service_healthy
@@ -84,3 +88,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
+
+secrets:
+  gemini_api_key:
+    file: ./secrets/gemini_api_key.txt
