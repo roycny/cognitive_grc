@@ -6,9 +6,10 @@ indicator (KRI) monitoring, GLBA information security program assessments, a
 metrics dashboard, activity logging, and configurable AI model settings.
 
 It also ships a suite of **AI Tools** — a SIEM/SOC detection-script agent, a
-Software Composition Analysis (SCA) agent backed by OSV-Scanner, and a quantified
-project risk assessment module — all driven by either a locally hosted Ollama
-model or a cloud model, with graceful fallback when no provider is configured.
+Software Composition Analysis (SCA) agent backed by OSV-Scanner, a quantified
+project risk assessment module, and a policy gap analyst that assesses policy
+documents against ten control frameworks — all driven by either a locally hosted
+Ollama model or a cloud model, with graceful fallback when no provider is configured.
 
 ## Tech Stack
 
@@ -121,6 +122,17 @@ proposing existing controls, recommended mitigations, owners, and action items. 
 register is fully editable, ratings are recomputed server-side from the numeric scores so
 they always match the matrix, and the assessment can be **exported as a PDF report**.
 
+### AI Tools — Policy Gap Analyst
+Assess a policy document against a control framework and surface where it falls short.
+Upload a policy (PDF / TXT / MD) or paste text, pick a framework, and the AI identifies
+each gap — a control omitted entirely, addressed only partially, worded inconsistently, or
+lacking specificity — with a **severity** (High / Medium / Low), the exact framework
+requirement it maps to, and an actionable remediation recommendation. Selected gaps can be
+**saved to a register** and reviewed later. Ten frameworks are supported out of the box:
+**NIST CSF 2.0**, **NIST SP 800-53 Rev. 5**, **ISO/IEC 27001:2022**, **SOC 2 (Trust
+Services Criteria)**, **PCI DSS v4.0**, **CIS Controls v8**, **HIPAA Security Rule**,
+**GLBA Safeguards Rule**, **GDPR**, and **OCC Cybersecurity Supervision (CSW)**.
+
 ---
 
 ## API Overview
@@ -199,6 +211,11 @@ they always match the matrix, and the assessment can be **exported as a PDF repo
 | GET | `/ai-tools/sca-agent/history` | List saved SCA reports |
 | GET | `/ai-tools/sca-agent/history/{report_id}` | Get a saved SCA report |
 | DELETE | `/ai-tools/sca-agent/history/{report_id}` | Delete a saved SCA report |
+| GET | `/ai-tools/policy-gap/frameworks` | List the control frameworks the analyst supports |
+| POST | `/ai-tools/policy-gap/assess` | Assess an uploaded/pasted policy against a framework |
+| POST | `/ai-tools/policy-gap/gaps` | Save a batch of identified gaps to the register |
+| GET | `/ai-tools/policy-gap/gaps` | List saved policy gaps |
+| DELETE | `/ai-tools/policy-gap/gaps/{gap_id}` | Delete a saved policy gap |
 
 ### Project Risk Assessments — `/project-risk`
 | Method | Path | Description |
@@ -219,11 +236,12 @@ they always match the matrix, and the assessment can be **exported as a PDF repo
 - `GLBAAssessment` / `GLBAControlResponse` — assessment header plus one editable response row per control.
 - `SCAReport` — saved Software Composition Analysis report: app name, risk level, AI summary, raw scan results, recommendations, and per-CVE findings.
 - `ProjectRiskAssessment` / `ProjectRisk` — risk assessment header plus one row per identified risk (inherent/residual likelihood & impact, ratings, controls, mitigation, owner, action items).
+- `PolicyAssessmentGap` — one saved policy gap: policy name, framework, requirement, gap description, recommendation, severity, and author.
 - `AuditLog` — append-only activity log written from a background task.
 
-The `users`, `audits`, `issues`, `kris`, GLBA assessment, SCA report, and project risk
-tables are created by Alembic migrations; the `audit_logs` table is auto-created at
-application startup.
+The `users`, `audits`, `issues`, `kris`, GLBA assessment, SCA report, project risk, and
+policy gap tables are created by Alembic migrations; the `audit_logs` table is auto-created
+at application startup.
 
 ---
 
@@ -237,10 +255,11 @@ application startup.
 │   │   ├── database.py             # SQLAlchemy engine/session + Base
 │   │   ├── auth.py                 # JWT, password hashing, current-user deps
 │   │   ├── rate_limit.py           # SlowAPI limiter (Redis-backed)
-│   │   ├── models/                 # user, audit, issue, kri, glba, sca, project_risk, audit_log
+│   │   ├── models/                 # user, audit, issue, kri, glba, sca, project_risk,
+│   │   │                           #   policy_gap, audit_log
 │   │   ├── schemas/                # Pydantic schemas
 │   │   ├── routers/                # auth, users, audits, issues, kri, glba, audit_logs,
-│   │   │                           #   ai, ai_tools (SIEM/SCA), project_risk
+│   │   │                           #   ai, ai_tools (SIEM/SCA), project_risk, policy_gap
 │   │   └── services/               # audit_log_service, ai_service, project_risk_report
 │   ├── alembic/                    # Migrations
 │   ├── create_initial_user.py      # Bootstrap an admin user
@@ -254,7 +273,8 @@ application startup.
 │       ├── data/                   # static reference data (GLBA control template)
 │       ├── pages/                  # Login, Dashboard, Audits, Issues, KRIs,
 │       │                           #   GLBA Assessments, SIEM Script Agent, SCA Agent,
-│       │                           #   Project Risk Assessments, UserManagement, Logging, Settings
+│       │                           #   Policy Gap Analyst, Project Risk Assessments,
+│       │                           #   UserManagement, Logging, Settings
 │       ├── theme.ts                # MUI theme
 │       └── types.ts                # shared TypeScript types
 └── docker-compose.yml              # db, redis, backend, frontend

@@ -27,6 +27,86 @@ OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 _OLLAMA_TIMEOUT_S = 300
 
 
+# ---------------------------------------------------------------------------
+# Policy Gap Analyst — supported control frameworks
+# ---------------------------------------------------------------------------
+# Each entry is a compact description the model uses as grounding when scoring a
+# policy document for gaps. Keep keys human-readable — they double as the labels
+# shown in the UI dropdown and stored on each saved gap.
+POLICY_FRAMEWORKS: dict = {
+    "NIST CSF 2.0": (
+        "NIST Cybersecurity Framework (CSF) 2.0 — six core Functions:\n"
+        "1. GOVERN (GV): cybersecurity risk-management strategy, roles, policy, oversight, supply-chain risk.\n"
+        "2. IDENTIFY (ID): asset, data, supplier, and risk understanding; risk assessment.\n"
+        "3. PROTECT (PR): identity & access control, awareness & training, data security, platform security, resilience.\n"
+        "4. DETECT (DE): continuous monitoring and adverse-event analysis.\n"
+        "5. RESPOND (RS): incident management, analysis, mitigation, reporting & communication.\n"
+        "6. RECOVER (RC): incident recovery plan execution and communication."
+    ),
+    "NIST SP 800-53 Rev. 5": (
+        "NIST SP 800-53 Rev. 5 security & privacy control families, e.g. AC (Access Control), "
+        "AU (Audit & Accountability), CM (Configuration Management), CP (Contingency Planning), "
+        "IA (Identification & Authentication), IR (Incident Response), RA (Risk Assessment), "
+        "SC (System & Communications Protection), SI (System & Information Integrity), "
+        "AT (Awareness & Training), MA (Maintenance), MP (Media Protection), PE (Physical & "
+        "Environmental), PL (Planning), PS (Personnel Security), SA (System & Services Acquisition)."
+    ),
+    "ISO/IEC 27001:2022": (
+        "ISO/IEC 27001:2022 ISMS clauses 4-10 plus Annex A (93 controls in 4 themes): "
+        "Organizational (A.5), People (A.6), Physical (A.7), and Technological (A.8). "
+        "Covers risk treatment, Statement of Applicability, access control, cryptography, "
+        "operations security, supplier relationships, incident management, and continuity."
+    ),
+    "SOC 2 (Trust Services Criteria)": (
+        "AICPA SOC 2 Trust Services Criteria: Security/Common Criteria (CC1-CC9 — control "
+        "environment, communication, risk assessment, monitoring, logical & physical access, "
+        "system operations, change management, risk mitigation), plus Availability, "
+        "Confidentiality, Processing Integrity, and Privacy criteria."
+    ),
+    "PCI DSS v4.0": (
+        "PCI DSS v4.0 twelve requirements: install/maintain network security controls; secure "
+        "configurations; protect stored account data; protect data in transit; anti-malware; "
+        "secure systems & software; restrict access by need-to-know; identify & authenticate "
+        "access; restrict physical access; log & monitor; test security regularly; maintain an "
+        "information security policy."
+    ),
+    "CIS Controls v8": (
+        "CIS Critical Security Controls v8 (18 controls): inventory of enterprise assets & "
+        "software, data protection, secure configuration, account & access control management, "
+        "vulnerability management, audit log management, email/web & malware defenses, data "
+        "recovery, network infrastructure management, security awareness, service-provider "
+        "management, application software security, incident response, and penetration testing."
+    ),
+    "HIPAA Security Rule": (
+        "HIPAA Security Rule safeguards for ePHI (45 CFR §164.308-316): Administrative "
+        "safeguards (security management, risk analysis, workforce security, training, "
+        "contingency plan), Physical safeguards (facility access, workstation & device "
+        "controls), Technical safeguards (access control, audit controls, integrity, "
+        "authentication, transmission security), plus organizational & documentation requirements."
+    ),
+    "GLBA Safeguards Rule": (
+        "GLBA / Interagency Guidelines (§501(b)) Information Security Program: designate a "
+        "qualified individual, written risk assessment, access controls, encryption of customer "
+        "data in transit & at rest, MFA, secure development, change management, monitoring & "
+        "logging, vendor oversight, incident response plan, training, and board reporting."
+    ),
+    "GDPR": (
+        "EU GDPR data-protection obligations: lawful basis & consent, data-subject rights, "
+        "data minimization & purpose limitation, records of processing (Art. 30), security of "
+        "processing (Art. 32 — encryption, confidentiality, integrity, availability, resilience), "
+        "breach notification (Arts. 33-34), DPIAs (Art. 35), data-protection by design & default, "
+        "and international transfer safeguards."
+    ),
+    "OCC Cybersecurity Supervision (CSW)": (
+        "OCC Cybersecurity Supervision Work Program domains: governance & risk management; cyber "
+        "risk identification & assessment; cybersecurity controls (access, network, endpoint, "
+        "encryption, patching); external dependency / third-party management; incident "
+        "identification, reporting & response; awareness & training; business continuity & "
+        "resilience; and independent audit."
+    ),
+}
+
+
 class AIService:
     """Provider-agnostic helper for the AI Tools agents."""
 
@@ -473,6 +553,93 @@ Return ONLY valid JSON. No markdown fences, no text outside the JSON object.
                 "overall_residual_rating": "UNKNOWN",
                 "risks": [],
             }
+
+    # -- Policy Gap Analyst -------------------------------------------------
+
+    _GAP_SEVERITIES = ("High", "Medium", "Low")
+
+    def assess_policy_gaps(
+        self,
+        policy_text: str,
+        framework: str,
+        policy_name: str,
+        model_name: str = "ollama/llama3.1",
+    ) -> dict:
+        """
+        Assess a policy document against a control framework and identify gaps,
+        discrepancies, and remediation recommendations.
+
+        Returns ``{"gaps": [ {requirement, gap_description, recommendation,
+        severity}, ... ]}``. On a configuration or model error, returns an empty
+        list plus an ``error`` string so the caller can surface it.
+        """
+        if not self._is_ollama_model(model_name) and not self._get_gemini_api_key():
+            return {
+                "gaps": [],
+                "error": "AI provider not configured. Select a local Ollama model in "
+                         "Settings, or set GEMINI_API_KEY for cloud assessment.",
+            }
+
+        framework_description = POLICY_FRAMEWORKS.get(
+            framework,
+            f"the {framework} framework's core control domains and requirements.",
+        )
+
+        prompt = f"""You are a senior GRC cybersecurity compliance assessor. Assess the
+following policy document against {framework} and identify gaps, discrepancies, and
+actionable recommendations.
+
+{framework} reference:
+{framework_description}
+
+Policy Document: "{policy_name}"
+<POLICY>
+{policy_text[:25000]}
+</POLICY>
+
+Instructions:
+1. Review the policy against each major {framework} domain/function above.
+2. Produce one entry for EACH gap or discrepancy found. A gap exists when the policy:
+   - Omits a required control or topic entirely
+   - Addresses a requirement only partially or vaguely
+   - Contains language inconsistent with the framework requirement
+   - Lacks specificity (no defined timeframes, roles, ownership, or procedures)
+3. Assign severity: "High" (critical control missing), "Medium" (partial coverage),
+   "Low" (minor wording or enhancement).
+4. Make recommendations specific and actionable, referencing the exact framework requirement.
+
+Return a JSON array of gap objects. Each object must have exactly these string fields:
+- "requirement": the specific {framework} control/domain the gap relates to (e.g. "NIST CSF PR.AA-01" or "ISO/IEC 27001 A.8.15 Logging")
+- "gap_description": what is missing or inadequate in the policy
+- "recommendation": a specific action to close the gap
+- "severity": exactly one of "High", "Medium", "Low"
+
+Return ONLY the JSON array. No markdown fences, no text outside the JSON.
+"""
+
+        try:
+            raw = self._strip_code_fences(self._generate(model_name, prompt))
+            parsed = json.loads(raw)
+            # The model is asked for a bare array, but tolerate a {"gaps": [...]} wrapper.
+            items = parsed if isinstance(parsed, list) else parsed.get("gaps", [])
+
+            gaps = []
+            for g in items:
+                if not isinstance(g, dict) or not g.get("requirement"):
+                    continue
+                severity = str(g.get("severity", "Medium")).strip().title()
+                if severity not in self._GAP_SEVERITIES:
+                    severity = "Medium"
+                gaps.append({
+                    "requirement": str(g.get("requirement", "")),
+                    "gap_description": str(g.get("gap_description", "")),
+                    "recommendation": str(g.get("recommendation", "")),
+                    "severity": severity,
+                })
+            return {"gaps": gaps}
+        except Exception as e:
+            logger.error(f"Error assessing policy gaps: {e}")
+            return {"gaps": [], "error": f"Assessment failed: {e}"}
 
 
 ai_service = AIService()

@@ -12,7 +12,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
 from app.rate_limit import limiter
-from app.routers import auth, users, audits, issues, audit_logs, ai, glba, kri, ai_tools, project_risk
+from app.routers import auth, users, audits, issues, audit_logs, ai, glba, kri, ai_tools, project_risk, policy_gap
 from app.database import engine, Base
 
 logger = logging.getLogger(__name__)
@@ -145,6 +145,7 @@ app.include_router(glba.router)
 app.include_router(kri.router)
 app.include_router(ai_tools.router)
 app.include_router(project_risk.router)
+app.include_router(policy_gap.router)
 
 # ---------------------------------------------------------------------------
 # Global exception handler

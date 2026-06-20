@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ClipboardCheck,
   FileCheck,
+  FileSearch,
   History,
   LayoutDashboard,
   LogOut,
@@ -62,6 +63,7 @@ const NAV_SECTIONS: NavSection[] = [
         children: [
           { text: 'SCA Agent', icon: Boxes, path: '/ai-tools/sca-agent' },
           { text: 'SIEM Script Agent', icon: TerminalSquare, path: '/ai-tools/siem-agent' },
+          { text: 'Policy Gap Analyst', icon: FileSearch, path: '/ai-tools/policy-gap' },
         ],
       },
     ],
