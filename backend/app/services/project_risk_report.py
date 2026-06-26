@@ -6,6 +6,7 @@ detailed risk register table. Mirrors the visual language of the SCA report.
 """
 
 from datetime import datetime
+from xml.sax.saxutils import escape as _esc  # neutralise ReportLab markup in dynamic text
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER
@@ -155,7 +156,7 @@ def generate_project_risk_pdf(assessment, output_path: str) -> None:
     if assessment.executive_summary:
         story.append(Paragraph("Executive Summary", SEC))
         story.append(HRFlowable(width="100%", thickness=1, color=BLUE, spaceAfter=8))
-        story.append(Paragraph(assessment.executive_summary, BODY))
+        story.append(Paragraph(_esc(assessment.executive_summary), BODY))
         story.append(Spacer(1, 0.5 * cm))
 
     # ── 5×5 residual risk heatmap ────────────────────────────────────────────
@@ -223,19 +224,19 @@ def generate_project_risk_pdf(assessment, output_path: str) -> None:
         inh_c = RATING_HEX.get(r.inherent_rating or "", "#546E7A")
         res_c = RATING_HEX.get(r.residual_rating or "", "#546E7A")
         risk_cell = Paragraph(
-            f"<b>{(r.title or '')[:120]}</b><br/>"
-            f"<font size='6.5' color='#757575'>{r.category or '—'} · "
+            f"<b>{_esc((r.title or '')[:120])}</b><br/>"
+            f"<font size='6.5' color='#757575'>{_esc(r.category or '—')} · "
             f"L{r.likelihood or '-'}×I{r.impact or '-'}</font>", TD)
         actions = r.action_items if isinstance(r.action_items, list) else []
-        action_txt = "<br/>".join(f"• {a}" for a in actions[:3]) if actions else ""
+        action_txt = "<br/>".join(f"• {_esc(str(a))}" for a in actions[:3]) if actions else ""
         owner_cell = Paragraph(
-            (f"<b>{r.owner}</b><br/>" if r.owner else "") + action_txt, TD)
+            (f"<b>{_esc(r.owner)}</b><br/>" if r.owner else "") + action_txt, TD)
         rows.append([
             Paragraph(str(idx), TDC),
             risk_cell,
-            Paragraph(f"<font color='{inh_c}'><b>{r.inherent_rating or '—'}</b></font>", TDC),
-            Paragraph(f"<font color='{res_c}'><b>{r.residual_rating or '—'}</b></font>", TDC),
-            Paragraph((r.recommended_mitigation or "—")[:400], TD),
+            Paragraph(f"<font color='{inh_c}'><b>{_esc(r.inherent_rating or '—')}</b></font>", TDC),
+            Paragraph(f"<font color='{res_c}'><b>{_esc(r.residual_rating or '—')}</b></font>", TDC),
+            Paragraph(_esc((r.recommended_mitigation or "—")[:400]), TD),
             owner_cell,
         ])
 

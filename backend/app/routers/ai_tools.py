@@ -15,6 +15,7 @@ import tempfile
 import uuid
 from datetime import datetime
 from typing import List, Literal, Optional
+from xml.sax.saxutils import escape as _esc  # neutralise ReportLab markup in dynamic text
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
@@ -630,7 +631,7 @@ def _generate_sca_pdf(app_name: str, scan_results: List[SCAScanResultInput],
     story = []
     story.append(Spacer(1, 1.2 * cm))
     story.append(Paragraph(
-        app_name,
+        _esc(app_name),
         S("cv_app", fontSize=26, fontName="Helvetica-Bold", textColor=NAVY, leading=30, spaceAfter=6),
     ))
     story.append(HRFlowable(width="100%", thickness=2, color=BLUE, spaceAfter=10, spaceBefore=2))
@@ -640,7 +641,7 @@ def _generate_sca_pdf(app_name: str, scan_results: List[SCAScanResultInput],
         [[Paragraph("Overall Risk", S("ml", fontSize=7, fontName="Helvetica-Bold", textColor=DGRAY)),
           Paragraph("Files Scanned", S("ml", fontSize=7, fontName="Helvetica-Bold", textColor=DGRAY)),
           Paragraph("Total Vulnerabilities", S("ml", fontSize=7, fontName="Helvetica-Bold", textColor=DGRAY))],
-         [Paragraph(ai_risk_level, risk_label),
+         [Paragraph(_esc(ai_risk_level), risk_label),
           Paragraph(str(len(scan_results)), S("mv", fontSize=9)),
           Paragraph(str(total_vulns), S("mv", fontSize=9))]],
         colWidths=[CW / 3] * 3,
@@ -688,7 +689,7 @@ def _generate_sca_pdf(app_name: str, scan_results: List[SCAScanResultInput],
     if ai_summary:
         story.append(Paragraph("Executive Summary", SEC))
         story.append(HRFlowable(width="100%", thickness=1, color=BLUE, spaceAfter=8))
-        story.append(Paragraph(ai_summary, BODY))
+        story.append(Paragraph(_esc(ai_summary), BODY))
         story.append(Spacer(1, 0.5 * cm))
 
     story.append(Paragraph("Scan Summary", SEC))
@@ -703,7 +704,7 @@ def _generate_sca_pdf(app_name: str, scan_results: List[SCAScanResultInput],
                 if v.severity in rc:
                     rc[v.severity] += 1
         scan_rows.append([
-            Paragraph(r.filename, TD),
+            Paragraph(_esc(r.filename), TD),
             Paragraph(str(rc["CRITICAL"]), TDC),
             Paragraph(str(rc["HIGH"]),     TDC),
             Paragraph(str(rc["MEDIUM"]),   TDC),
@@ -761,11 +762,11 @@ def _generate_sca_pdf(app_name: str, scan_results: List[SCAScanResultInput],
             verify = f.get("how_to_verify",     "") if isinstance(f, dict) else f.how_to_verify
             color  = ACTION_HEX.get(action, "#546E7A")
             triage_rows.append([
-                Paragraph(pkg_v,  MONO),
-                Paragraph(vid,    MONO),
-                Paragraph(f"<font color='{color}'><b>{action}</b></font>", TDC),
-                Paragraph(why[:300],    TD),
-                Paragraph(verify[:300] if verify != "N/A" else "N/A", TD),
+                Paragraph(_esc(pkg_v),  MONO),
+                Paragraph(_esc(vid),    MONO),
+                Paragraph(f"<font color='{color}'><b>{_esc(action)}</b></font>", TDC),
+                Paragraph(_esc(why[:300]),    TD),
+                Paragraph(_esc(verify[:300]) if verify != "N/A" else "N/A", TD),
             ])
 
         triage_tbl = Table(triage_rows, colWidths=triage_col_w, repeatRows=1)
@@ -800,8 +801,8 @@ def _generate_sca_pdf(app_name: str, scan_results: List[SCAScanResultInput],
                 continue
             findings_added = True
             pkg_p = Paragraph(
-                f"<b>{pkg.name}</b><br/>"
-                f"<font size='7' color='#757575'>{pkg.ecosystem} · {r.filename}</font>",
+                f"<b>{_esc(pkg.name)}</b><br/>"
+                f"<font size='7' color='#757575'>{_esc(pkg.ecosystem)} · {_esc(r.filename)}</font>",
                 TD,
             )
             rows = [hdr_row]
@@ -809,11 +810,11 @@ def _generate_sca_pdf(app_name: str, scan_results: List[SCAScanResultInput],
                 hex_c = SEV_HEX.get(v.severity, "#546E7A")
                 rows.append([
                     pkg_p if v is ch[0] else Paragraph("", TD),
-                    Paragraph(pkg.version, MONO),
-                    Paragraph(v.id, MONO),
-                    Paragraph(f"<font color='{hex_c}'><b>{v.severity}</b></font>", TDC),
+                    Paragraph(_esc(pkg.version), MONO),
+                    Paragraph(_esc(v.id), MONO),
+                    Paragraph(f"<font color='{hex_c}'><b>{_esc(v.severity)}</b></font>", TDC),
                     Paragraph(f"{v.cvss_score:.1f}" if v.cvss_score else "—", TDC),
-                    Paragraph(v.summary[:200], TD),
+                    Paragraph(_esc(v.summary[:200]), TD),
                 ])
             tbl = Table(rows, colWidths=col_w, repeatRows=1)
             tbl.setStyle(TableStyle([

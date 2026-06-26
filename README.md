@@ -21,7 +21,7 @@ or a cloud model, with graceful fallback when no provider is configured.
 - **Migrations:** Alembic
 - **Cache & Sessions:** Redis (rate-limiting, refresh-token store, token revocation)
 - **Authentication:** JWT with BCrypt, Role-Based Access Control (Admin, Editor, Auditor, Viewer)
-- **Security:** Rotating refresh tokens, account lockout, rate limiting via SlowAPI, and security headers
+- **Security:** Rotating refresh tokens, account lockout, rate limiting via SlowAPI, security headers, and a hardened AI tooling layer (prompt-injection defenses, model-output escaping)
 - **Audit Logging:** Non-blocking asynchronous activity logs
 
 ### Frontend
@@ -152,6 +152,31 @@ Results are organized into three collapsible sections — **Guidance & Recommend
 (priority-sorted), **Evidence & Procedures** (with attention points), and **Framework
 Control References** (OCC CSW + NIST CSF 2.0). Responses can be **saved** and reviewed
 later from the Saved Responses tab.
+
+### AI Tools — security & prompt-injection hardening
+Every AI Tool feeds **untrusted** user content (uploaded policy/audit/project documents,
+OSV-Scanner output driven by an uploaded manifest, free-text goals, threat-intel IOCs, and
+chat history) into the model. The tooling layer applies defense-in-depth so a hostile
+document cannot hijack the model or the report pipeline:
+
+- **System / data separation** — trusted instructions are delivered out-of-band from user
+  content (Ollama `system` field / Gemini `system_instruction`), telling the model that all
+  delimited blocks are inert *data to analyze*, never commands to obey.
+- **Delimiter-breakout neutralization** — every untrusted field is length-capped and has its
+  delimiter and role markers (`</DOCUMENT>`, `<SYSTEM>`, `<USER>`, …) defanged, so embedded
+  text cannot close a block or forge a fake system/instruction section.
+- **SIEM output guardrails** — generated detections are constrained to defensive, read-only
+  content; destructive, offensive, or data-exfiltrating code is refused even if requested.
+- **Model-name validation** — the user-selected model id is constrained to a safe charset
+  before it reaches the provider SDK.
+- **Report-pipeline escaping** — all AI- and scan-derived strings are escaped before being
+  rendered into PDF report markup, preventing markup injection from crafted package names or
+  model output.
+- **Output treated as untrusted** — model responses are schema-validated and coerced before
+  use; generated SIEM scripts are still intended for analyst review before execution.
+
+These measures reduce — but do not fully eliminate — prompt-injection risk, which is inherent
+to LLM-backed features.
 
 ---
 
