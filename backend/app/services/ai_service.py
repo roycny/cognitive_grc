@@ -638,8 +638,165 @@ Return ONLY the JSON array. No markdown fences, no text outside the JSON.
                 })
             return {"gaps": gaps}
         except Exception as e:
+            # Log the detail server-side; return a generic message so internal
+            # details (hostnames, stack info) are never surfaced to the client.
             logger.error(f"Error assessing policy gaps: {e}")
-            return {"gaps": [], "error": f"Assessment failed: {e}"}
+            return {"gaps": [], "error": "Assessment failed. Please try again or check the AI provider configuration."}
+
+    # -- Audit Dispute Agent ------------------------------------------------
+
+    def analyze_audit_dispute(
+        self,
+        audit_text: str,
+        input_type: str,
+        title: str,
+        model_name: str = "ollama/llama3.1",
+    ) -> dict:
+        if not self._is_ollama_model(model_name) and not self._get_gemini_api_key():
+            return {
+                "summary": "AI provider not configured. Select a local Ollama model "
+                           "in Settings, or set GEMINI_API_KEY for cloud analysis.",
+                "risk_rating": "UNKNOWN",
+                "guidance": [],
+                "evidence_suggestions": [],
+                "control_references": [],
+            }
+
+        if input_type == "audit_observation":
+            mode_instructions = """You are reviewing an AUDIT OBSERVATION (finding/issue).
+Your goal is to help the auditee DISPUTE or MITIGATE the observation by:
+1. Explaining why the residual risk is lower than the auditor assessed, citing existing
+   compensating/mitigating controls already in place.
+2. Providing a structured argument referencing OCC Cybersecurity Supervision Work Program
+   (CSW) domains and NIST CSF 2.0 controls that demonstrate adequate coverage.
+3. Suggesting evidence artifacts the auditee can present to lower the severity or close the finding.
+4. Identifying what the auditor may have missed or mischaracterised.
+
+For each control reference, explain how it mitigates the specific risk cited in the observation."""
+        else:
+            mode_instructions = """You are reviewing an AUDIT REQUEST (information request, evidence request, or audit scope item).
+Your goal is to help the auditee RESPOND effectively by:
+1. Breaking down what the auditor is actually asking for and why.
+2. Mapping the request to specific OCC Cybersecurity Supervision Work Program (CSW)
+   domains and NIST CSF 2.0 controls.
+3. Listing the exact procedures, documents, and evidence artifacts to gather.
+4. Flagging areas that need special attention or could become findings if not addressed properly.
+5. Providing guidance on how to frame the response to satisfy the audit requirement."""
+
+        prompt = f"""Act as a senior IT audit response specialist and GRC expert with deep knowledge of
+OCC Cybersecurity Supervision Work Program (CSW) and NIST Cybersecurity Framework (CSF) 2.0.
+
+{mode_instructions}
+
+AUDIT {'OBSERVATION' if input_type == 'audit_observation' else 'REQUEST'}:
+Title: {title}
+<CONTENT>
+{audit_text[:20000]}
+</CONTENT>
+
+Reference frameworks:
+
+OCC Cybersecurity Supervision Work Program domains:
+- Governance & Risk Management
+- Cyber Risk Identification & Assessment
+- Cybersecurity Controls (access, network, endpoint, encryption, patching)
+- External Dependency / Third-Party Management
+- Incident Identification, Reporting & Response
+- Awareness & Training
+- Business Continuity & Resilience
+- Independent Audit
+
+NIST CSF 2.0 Functions and Categories:
+- GOVERN (GV): GV.OC, GV.RM, GV.RR, GV.PO, GV.OV, GV.SC
+- IDENTIFY (ID): ID.AM, ID.RA, ID.IM
+- PROTECT (PR): PR.AA, PR.AT, PR.DS, PR.PS, PR.IR
+- DETECT (DE): DE.CM, DE.AE
+- RESPOND (RS): RS.MA, RS.AN, RS.CO, RS.MI
+- RECOVER (RC): RC.RP, RC.CO
+
+Produce a JSON object with exactly these keys:
+
+"summary": A 3-5 sentence executive summary of the {'observation and why the risk may be lower than assessed' if input_type == 'audit_observation' else 'audit request, what it requires, and key considerations'}.
+
+"risk_rating": One of "Critical", "High", "Medium", "Low" — {'the assessed residual risk after considering mitigating controls' if input_type == 'audit_observation' else 'how critical it is to respond thoroughly to this request'}.
+
+"guidance": A JSON array of objects, each with:
+  - "title": short heading for this guidance point
+  - "description": detailed actionable guidance (2-4 sentences)
+  - "priority": "High", "Medium", or "Low"
+
+"evidence_suggestions": A JSON array of objects, each with:
+  - "document": name of the evidence artifact or procedure document
+  - "description": what it should contain and why it addresses the {'observation' if input_type == 'audit_observation' else 'request'}
+  - "attention_points": specific items within this document to highlight or verify before submitting
+
+"control_references": A JSON array of objects, each with:
+  - "framework": either "OCC CSW" or "NIST CSF 2.0"
+  - "control_id": the specific domain or control category (e.g. "GV.RR", "Cybersecurity Controls")
+  - "control_name": full name of the control
+  - "relevance": how this control relates to the {'observation — how it mitigates the cited risk' if input_type == 'audit_observation' else 'audit request — what aspect it covers'}
+
+Return ONLY valid JSON. No markdown fences, no text outside the JSON object.
+"""
+
+        try:
+            raw = self._strip_code_fences(self._generate(model_name, prompt))
+            result = json.loads(raw)
+
+            guidance = []
+            for g in result.get("guidance", []):
+                if not isinstance(g, dict):
+                    continue
+                priority = str(g.get("priority", "Medium")).strip().title()
+                if priority not in ("High", "Medium", "Low"):
+                    priority = "Medium"
+                guidance.append({
+                    "title": str(g.get("title", "")),
+                    "description": str(g.get("description", "")),
+                    "priority": priority,
+                })
+
+            evidence = []
+            for e in result.get("evidence_suggestions", []):
+                if not isinstance(e, dict):
+                    continue
+                evidence.append({
+                    "document": str(e.get("document", "")),
+                    "description": str(e.get("description", "")),
+                    "attention_points": str(e.get("attention_points", "")),
+                })
+
+            controls = []
+            for c in result.get("control_references", []):
+                if not isinstance(c, dict):
+                    continue
+                controls.append({
+                    "framework": str(c.get("framework", "")),
+                    "control_id": str(c.get("control_id", "")),
+                    "control_name": str(c.get("control_name", "")),
+                    "relevance": str(c.get("relevance", "")),
+                })
+
+            risk = str(result.get("risk_rating", "Medium")).strip().title()
+            if risk not in ("Critical", "High", "Medium", "Low"):
+                risk = "Medium"
+
+            return {
+                "summary": str(result.get("summary", "")),
+                "risk_rating": risk,
+                "guidance": guidance,
+                "evidence_suggestions": evidence,
+                "control_references": controls,
+            }
+        except Exception as e:
+            logger.error(f"Error analyzing audit dispute: {e}")
+            return {
+                "summary": f"Analysis failed: {e}",
+                "risk_rating": "UNKNOWN",
+                "guidance": [],
+                "evidence_suggestions": [],
+                "control_references": [],
+            }
 
 
 ai_service = AIService()

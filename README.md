@@ -7,9 +7,11 @@ metrics dashboard, activity logging, and configurable AI model settings.
 
 It also ships a suite of **AI Tools** — a SIEM/SOC detection-script agent, a
 Software Composition Analysis (SCA) agent backed by OSV-Scanner, a quantified
-project risk assessment module, and a policy gap analyst that assesses policy
-documents against ten control frameworks — all driven by either a locally hosted
-Ollama model or a cloud model, with graceful fallback when no provider is configured.
+project risk assessment module, a policy gap analyst that assesses policy
+documents against ten control frameworks, and an audit dispute agent that helps
+respond to audit requests and dispute audit observations with OCC CSW and NIST
+CSF 2.0 control references — all driven by either a locally hosted Ollama model
+or a cloud model, with graceful fallback when no provider is configured.
 
 ## Tech Stack
 
@@ -133,6 +135,24 @@ requirement it maps to, and an actionable remediation recommendation. Selected g
 Services Criteria)**, **PCI DSS v4.0**, **CIS Controls v8**, **HIPAA Security Rule**,
 **GLBA Safeguards Rule**, **GDPR**, and **OCC Cybersecurity Supervision (CSW)**.
 
+### AI Tools — Audit Dispute Agent
+Analyze an audit request or audit observation and receive AI-generated guidance
+grounded in **OCC Cybersecurity Supervision Work Program (CSW)** domains and
+**NIST CSF 2.0** controls. Paste the audit text or upload a document (PDF / TXT / MD)
+and select the type:
+
+- **Audit Request mode** — maps the information request to CSW / NIST controls, lists
+  the exact procedures, evidence artifacts, and documents to gather, and flags areas
+  that need special attention to avoid follow-up findings.
+- **Audit Observation mode** — builds a dispute / mitigation response explaining why
+  the residual risk is lower than assessed, citing compensating and mitigating controls
+  with framework references.
+
+Results are organized into three collapsible sections — **Guidance & Recommendations**
+(priority-sorted), **Evidence & Procedures** (with attention points), and **Framework
+Control References** (OCC CSW + NIST CSF 2.0). Responses can be **saved** and reviewed
+later from the Saved Responses tab.
+
 ---
 
 ## API Overview
@@ -216,6 +236,11 @@ Services Criteria)**, **PCI DSS v4.0**, **CIS Controls v8**, **HIPAA Security Ru
 | POST | `/ai-tools/policy-gap/gaps` | Save a batch of identified gaps to the register |
 | GET | `/ai-tools/policy-gap/gaps` | List saved policy gaps |
 | DELETE | `/ai-tools/policy-gap/gaps/{gap_id}` | Delete a saved policy gap |
+| POST | `/ai-tools/audit-dispute/analyze` | Analyze an audit request or observation with AI |
+| POST | `/ai-tools/audit-dispute/save` | Save an analysis response |
+| GET | `/ai-tools/audit-dispute/history` | List saved audit dispute responses |
+| GET | `/ai-tools/audit-dispute/history/{id}` | Get a saved response |
+| DELETE | `/ai-tools/audit-dispute/history/{id}` | Delete a saved response |
 
 ### Project Risk Assessments — `/project-risk`
 | Method | Path | Description |
@@ -237,11 +262,12 @@ Services Criteria)**, **PCI DSS v4.0**, **CIS Controls v8**, **HIPAA Security Ru
 - `SCAReport` — saved Software Composition Analysis report: app name, risk level, AI summary, raw scan results, recommendations, and per-CVE findings.
 - `ProjectRiskAssessment` / `ProjectRisk` — risk assessment header plus one row per identified risk (inherent/residual likelihood & impact, ratings, controls, mitigation, owner, action items).
 - `PolicyAssessmentGap` — one saved policy gap: policy name, framework, requirement, gap description, recommendation, severity, and author.
+- `AuditDisputeResponse` — saved audit dispute response: title, input type, risk rating, executive summary, guidance items, evidence suggestions, and OCC CSW / NIST CSF 2.0 control references.
 - `AuditLog` — append-only activity log written from a background task.
 
-The `users`, `audits`, `issues`, `kris`, GLBA assessment, SCA report, project risk, and
-policy gap tables are created by Alembic migrations; the `audit_logs` table is auto-created
-at application startup.
+The `users`, `audits`, `issues`, `kris`, GLBA assessment, SCA report, project risk,
+policy gap, and audit dispute tables are created by Alembic migrations; the `audit_logs`
+table is auto-created at application startup.
 
 ---
 
@@ -256,10 +282,11 @@ at application startup.
 │   │   ├── auth.py                 # JWT, password hashing, current-user deps
 │   │   ├── rate_limit.py           # SlowAPI limiter (Redis-backed)
 │   │   ├── models/                 # user, audit, issue, kri, glba, sca, project_risk,
-│   │   │                           #   policy_gap, audit_log
+│   │   │                           #   policy_gap, audit_dispute, audit_log
 │   │   ├── schemas/                # Pydantic schemas
 │   │   ├── routers/                # auth, users, audits, issues, kri, glba, audit_logs,
-│   │   │                           #   ai, ai_tools (SIEM/SCA), project_risk, policy_gap
+│   │   │                           #   ai, ai_tools (SIEM/SCA), project_risk, policy_gap,
+│   │   │                           #   audit_dispute
 │   │   └── services/               # audit_log_service, ai_service, project_risk_report
 │   ├── alembic/                    # Migrations
 │   ├── create_initial_user.py      # Bootstrap an admin user
@@ -273,8 +300,9 @@ at application startup.
 │       ├── data/                   # static reference data (GLBA control template)
 │       ├── pages/                  # Login, Dashboard, Audits, Issues, KRIs,
 │       │                           #   GLBA Assessments, SIEM Script Agent, SCA Agent,
-│       │                           #   Policy Gap Analyst, Project Risk Assessments,
-│       │                           #   UserManagement, Logging, Settings
+│       │                           #   Policy Gap Analyst, Audit Dispute Agent,
+│       │                           #   Project Risk Assessments, UserManagement,
+│       │                           #   Logging, Settings
 │       ├── theme.ts                # MUI theme
 │       └── types.ts                # shared TypeScript types
 └── docker-compose.yml              # db, redis, backend, frontend

@@ -17,6 +17,19 @@ from app.rate_limit import limiter
 
 router = APIRouter(prefix="/audit-logs", tags=["audit-logs"])
 
+# Leading characters that spreadsheet apps (Excel / Sheets / LibreOffice) treat
+# as the start of a formula. Audit-log fields carry attacker-influenced content
+# (e.g. uploaded filenames, policy/app names land in `detail`), so neutralize
+# them before writing the CSV to prevent formula/CSV injection.
+_CSV_INJECTION_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _csv_safe(value: str) -> str:
+    """Prefix a leading formula trigger with a single quote so the cell stays literal text."""
+    if value and value[0] in _CSV_INJECTION_PREFIXES:
+        return "'" + value
+    return value
+
 
 def _require_admin(user: User) -> None:
     if user.role != UserRole.ADMIN:
@@ -107,12 +120,12 @@ def export_audit_logs_csv(
     for log in logs:
         writer.writerow({
             "Timestamp": log.timestamp.isoformat() if log.timestamp else "",
-            "Username": log.username,
-            "Action": log.action,
-            "Resource Type": log.resource_type or "",
-            "Resource ID": log.resource_id or "",
-            "Detail": log.detail or "",
-            "IP Address": log.ip_address or "",
+            "Username": _csv_safe(log.username or ""),
+            "Action": _csv_safe(log.action or ""),
+            "Resource Type": _csv_safe(log.resource_type or ""),
+            "Resource ID": _csv_safe(log.resource_id or ""),
+            "Detail": _csv_safe(log.detail or ""),
+            "IP Address": _csv_safe(log.ip_address or ""),
         })
     output.seek(0)
 

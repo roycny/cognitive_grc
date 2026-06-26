@@ -281,8 +281,12 @@ def _scan_one(filename: str, content: bytes) -> SCAScanResponse:
         )
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        # osv-scanner requires SBOM files to end in .spdx.json
-        stored_name = "sbom.spdx.json" if is_sbom else filename
+        # Never build the on-disk path from the client-supplied filename — it can
+        # contain path-traversal sequences ("../") or be absolute, which would let
+        # an attacker write arbitrary content outside tmpdir. osv-scanner is told
+        # the manifest type explicitly via the --lockfile prefix (and SBOMs just
+        # need a .spdx.json suffix), so the stored name is otherwise irrelevant.
+        stored_name = "sbom.spdx.json" if is_sbom else f"manifest{os.path.splitext(filename)[1].lower()}"
         file_path = os.path.join(tmpdir, stored_name)
         with open(file_path, "wb") as fh:
             fh.write(content)

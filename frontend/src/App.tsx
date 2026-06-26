@@ -12,6 +12,7 @@ import KRIsPage from './pages/KRIsPage'
 import SCAAgent from './pages/SCAAgent'
 import SIEMScriptAgent from './pages/SIEMScriptAgent'
 import PolicyGapAgent from './pages/PolicyGapAgent'
+import AuditDisputeAgent from './pages/AuditDisputeAgent'
 import ProtectedRoute from './components/ProtectedRoute'
 
 export default function App() {
@@ -111,6 +112,14 @@ export default function App() {
         element={
           <ProtectedRoute>
             <PolicyGapAgent />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ai-tools/audit-dispute"
+        element={
+          <ProtectedRoute>
+            <AuditDisputeAgent />
           </ProtectedRoute>
         }
       />
