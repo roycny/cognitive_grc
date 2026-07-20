@@ -9,8 +9,11 @@ class Token(BaseModel):
 
 
 class TokenRefreshResponse(BaseModel):
-    access_token: str
-    refresh_token: str
+    # Tokens are only present for non-cookie API clients (refresh token supplied
+    # in the request body). Browser clients receive tokens via httpOnly cookies
+    # exclusively, so script-injected code can never read them from the response.
+    access_token: Optional[str] = None
+    refresh_token: Optional[str] = None
     token_type: str
 
 

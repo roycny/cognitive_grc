@@ -223,6 +223,14 @@ async def refresh_access_token(
     )
     new_refresh_token = create_refresh_token(username)
     _set_auth_cookies(response, new_access_token, new_refresh_token)
+
+    # Only echo tokens in the body for non-cookie API clients — i.e. when the
+    # refresh token arrived in the request body, proving the caller already
+    # holds it. Cookie-authenticated (browser) clients get the rotated tokens
+    # via httpOnly cookies only; returning them in JSON would let any XSS
+    # payload mint and read a fresh 7-day session with a single fetch().
+    if refresh_token_cookie:
+        return {"token_type": "bearer"}
     return {"access_token": new_access_token, "refresh_token": new_refresh_token, "token_type": "bearer"}
 
 

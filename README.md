@@ -43,6 +43,10 @@ or a cloud model, with graceful fallback when no provider is configured.
   written client-side.
 - **Transparent silent refresh** via a 401 response interceptor.
 - **Server-side revocation** on logout (Redis), with **rotating refresh tokens** invalidated on every use.
+- **No token exposure to JavaScript**: cookie-authenticated refresh responses omit the
+  tokens from the JSON body (they travel only in the rotated httpOnly cookies), so even an
+  XSS payload cannot harvest a session by calling `/auth/refresh`. Non-cookie API clients
+  that supply the refresh token in the request body still receive tokens in the response.
 - Account lockout after repeated failed logins; per-route rate limiting.
 
 ### Role-based access control
@@ -190,7 +194,7 @@ to LLM-backed features.
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/auth/token` | Log in (OAuth2 password flow); sets httpOnly cookies |
-| POST | `/auth/refresh` | Exchange a refresh token for a new access token (rotating) |
+| POST | `/auth/refresh` | Rotate tokens; body tokens returned only to non-cookie API clients |
 | POST | `/auth/logout` | Revoke the current tokens and clear cookies |
 | POST | `/auth/change-password` | Change the signed-in user's password |
 
