@@ -55,7 +55,10 @@ const NAV_SECTIONS: NavSection[] = [
         text: 'Risk Assessment',
         icon: ShieldAlert,
         expandable: true,
-        children: [{ text: 'GLBA Assessment', icon: FileCheck, path: '/assessments/glba' }],
+        children: [
+          { text: 'GLBA Assessment', icon: FileCheck, path: '/assessments/glba' },
+          { text: 'Project Risk', icon: FileSearch, path: '/assessments/project-risk' },
+        ],
       },
       {
         text: 'AI Tools',

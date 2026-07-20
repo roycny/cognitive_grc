@@ -130,7 +130,7 @@ const ACTION_ORDER: Record<string, number> = {
 };
 
 /** The AI model selected in Settings (cloud "gemini-*" or local "ollama/<name>"). */
-const getSavedModel = () => localStorage.getItem(AI_MODEL_KEY) || 'gemini-2.5-pro';
+const getSavedModel = () => localStorage.getItem(AI_MODEL_KEY) || 'gemini-3.5-flash';
 
 // ---------------------------------------------------------------------------
 // PackageRow

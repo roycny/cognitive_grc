@@ -117,12 +117,16 @@ inventory** of reports for later review.
 
 ### AI Tools — Project Risk Assessment
 Run a quantified, AI-driven risk assessment over project documentation. Upload project
-docs (PDF / TXT / MD) or paste text; the AI identifies discrete risks across categories
-(Security, Operational, Compliance, Financial, Schedule, Third-Party, Data Privacy) and
-scores each on a **5×5 Likelihood × Impact matrix** for both inherent and residual risk,
-proposing existing controls, recommended mitigations, owners, and action items. The
-register is fully editable, ratings are recomputed server-side from the numeric scores so
-they always match the matrix, and the assessment can be **exported as a PDF report**.
+documentation (PDF / TXT / MD) directly on creation or paste text; the AI identifies discrete entries
+across two formats:
+- **Standard Risk Matrix**: Identifies risks across categories (Security, Operational, Compliance, Financial, Schedule, Third-Party, Data Privacy) scored on a **5×5 Likelihood × Impact matrix**.
+- **CRAID Log**: Redefined format separating findings into:
+  - **Changes**: Requests or adjustments to scope, deliverables, or timeline (non-scored).
+  - **Risks**: Potential future events that could impact the project (scored on the 5×5 matrix).
+  - **Actions**: Specific tasks assigned to team members with designated deadlines (non-scored).
+  - **Issues**: Current active problems impeding progress (scored on the 5×5 matrix).
+  - **Decisions & Dependencies**: Stakeholder choices or external conditions/tasks (non-scored).
+The register is fully editable, ratings are recomputed server-side, and assessments can be **exported as a styled PDF report** (automatically grouped by CRAID logs in CRAID mode).
 
 ### AI Tools — Policy Gap Analyst
 Assess a policy document against a control framework and surface where it falls short.
@@ -276,7 +280,7 @@ to LLM-backed features.
 | PUT | `/project-risk/assessments/{id}` | Update the header and/or replace the register |
 | DELETE | `/project-risk/assessments/{id}` | Delete an assessment (Admin only) |
 | POST | `/project-risk/assessments/{id}/ai-assess` | Run an AI assessment over docs/pasted text |
-| POST | `/project-risk/assessments/{id}/report` | Generate and download a PDF risk report |
+| GET | `/project-risk/assessments/{id}/report` | Generate and download a PDF risk report |
 
 ### Data models
 - `User` — credentials, role, active flag, and lockout tracking. Roles: `ADMIN`, `EDITOR`, `AUDITOR`, `VIEWER`.

@@ -159,100 +159,182 @@ def generate_project_risk_pdf(assessment, output_path: str) -> None:
         story.append(Paragraph(_esc(assessment.executive_summary), BODY))
         story.append(Spacer(1, 0.5 * cm))
 
-    # ── 5×5 residual risk heatmap ────────────────────────────────────────────
-    story.append(Paragraph("Residual Risk Matrix", SEC))
-    story.append(HRFlowable(width="100%", thickness=1, color=BLUE, spaceAfter=8))
-
     # Count risks per (impact, likelihood) cell using residual scores.
     grid = {(i, l): 0 for i in range(1, 6) for l in range(1, 6)}
+    scoreable_count = 0
     for r in risks:
         l = r.residual_likelihood or r.likelihood
         i = r.residual_impact or r.impact
         if l and i:
             grid[(i, l)] += 1
+            scoreable_count += 1
 
-    # Rows = impact 5..1 (top=high), cols = likelihood 1..5
-    matrix_rows = [[Paragraph("Impact ↓ / Likelihood →", S("mh", fontSize=6.5, fontName="Helvetica-Bold",
-                                                           textColor=WHITE, alignment=TA_CENTER))]
-                   + [Paragraph(str(l), S("mh2", fontSize=8, fontName="Helvetica-Bold",
-                                          textColor=WHITE, alignment=TA_CENTER)) for l in range(1, 6)]]
-    for i in range(5, 0, -1):
-        row = [Paragraph(str(i), S("mi", fontSize=8, fontName="Helvetica-Bold",
-                                   textColor=WHITE, alignment=TA_CENTER))]
-        for l in range(1, 6):
-            n = grid[(i, l)]
-            row.append(Paragraph(str(n) if n else "", S(f"cell{i}{l}", fontSize=9,
-                       fontName="Helvetica-Bold", textColor=colors.white, alignment=TA_CENTER)))
-        matrix_rows.append(row)
+    # ── 5×5 residual risk heatmap ────────────────────────────────────────────
+    if getattr(assessment, "report_format", "Standard") != "CRAID" or scoreable_count > 0:
+        story.append(Paragraph("Residual Risk Matrix", SEC))
+        story.append(HRFlowable(width="100%", thickness=1, color=BLUE, spaceAfter=8))
 
-    cellw = (CW - 1.4 * cm) / 5
-    matrix = Table(matrix_rows, colWidths=[1.4 * cm] + [cellw] * 5,
-                   rowHeights=[0.6 * cm] + [0.85 * cm] * 5)
-    mstyle = [
-        ("ALIGN", (0, 0), (-1, -1), "CENTER"), ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("GRID", (0, 0), (-1, -1), 0.5, WHITE),
-        ("BACKGROUND", (0, 0), (-1, 0), NAVY),
-        ("BACKGROUND", (0, 1), (0, -1), NAVY),
-    ]
-    # Color each data cell by its score band.
-    for ri, i in enumerate(range(5, 0, -1), start=1):
-        for ci, l in enumerate(range(1, 6), start=1):
-            band = ("Critical" if i * l >= 16 else "High" if i * l >= 10
-                    else "Medium" if i * l >= 5 else "Low")
-            mstyle.append(("BACKGROUND", (ci, ri), (ci, ri), _rating_color(band)))
-    matrix.setStyle(TableStyle(mstyle))
-    story.append(matrix)
-    story.append(Spacer(1, 0.2 * cm))
-    legend = " · ".join(f'<font color="{RATING_HEX[k]}">■</font> {k}' for k in
-                        ["Low", "Medium", "High", "Critical"])
-    story.append(Paragraph(f"Cell values = number of risks · {legend}",
-                           S("lg", fontSize=7.5, textColor=DGRAY)))
-    story.append(Spacer(1, 0.6 * cm))
+        # Rows = impact 5..1 (top=high), cols = likelihood 1..5
+        matrix_rows = [[Paragraph("Impact ↓ / Likelihood →", S("mh", fontSize=6.5, fontName="Helvetica-Bold",
+                                                               textColor=WHITE, alignment=TA_CENTER))]
+                       + [Paragraph(str(l), S("mh2", fontSize=8, fontName="Helvetica-Bold",
+                                              textColor=WHITE, alignment=TA_CENTER)) for l in range(1, 6)]]
+        for i in range(5, 0, -1):
+            row = [Paragraph(str(i), S("mi", fontSize=8, fontName="Helvetica-Bold",
+                                       textColor=WHITE, alignment=TA_CENTER))]
+            for l in range(1, 6):
+                n = grid[(i, l)]
+                row.append(Paragraph(str(n) if n else "", S(f"cell{i}{l}", fontSize=9,
+                           fontName="Helvetica-Bold", textColor=colors.white, alignment=TA_CENTER)))
+            matrix_rows.append(row)
+
+        cellw = (CW - 1.4 * cm) / 5
+        matrix = Table(matrix_rows, colWidths=[1.4 * cm] + [cellw] * 5,
+                       rowHeights=[0.6 * cm] + [0.85 * cm] * 5)
+        mstyle = [
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"), ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("GRID", (0, 0), (-1, -1), 0.5, WHITE),
+            ("BACKGROUND", (0, 0), (-1, 0), NAVY),
+            ("BACKGROUND", (0, 1), (0, -1), NAVY),
+        ]
+        # Color each data cell by its score band.
+        for ri, i in enumerate(range(5, 0, -1), start=1):
+            for ci, l in enumerate(range(1, 6), start=1):
+                band = ("Critical" if i * l >= 16 else "High" if i * l >= 10
+                        else "Medium" if i * l >= 5 else "Low")
+                mstyle.append(("BACKGROUND", (ci, ri), (ci, ri), _rating_color(band)))
+        matrix.setStyle(TableStyle(mstyle))
+        story.append(matrix)
+        story.append(Spacer(1, 0.2 * cm))
+        legend = " · ".join(f'<font color="{RATING_HEX[k]}">■</font> {k}' for k in
+                            ["Low", "Medium", "High", "Critical"])
+        story.append(Paragraph(f"Cell values = number of risks · {legend}",
+                               S("lg", fontSize=7.5, textColor=DGRAY)))
+        story.append(Spacer(1, 0.6 * cm))
 
     # ── Risk register table ──────────────────────────────────────────────────
-    story.append(PageBreak())
-    story.append(Paragraph("Risk Register", SEC))
-    story.append(HRFlowable(width="100%", thickness=1, color=BLUE, spaceAfter=8))
+    if getattr(assessment, "report_format", "Standard") == "CRAID":
+        # Group risks by category
+        categories = ["Change", "Risk", "Action", "Issue", "Decision/Dependency"]
+        category_titles = {
+            "Change": "Changes Log",
+            "Risk": "Risks Log",
+            "Action": "Actions Log",
+            "Issue": "Issues Log",
+            "Decision/Dependency": "Decisions & Dependencies Log",
+        }
 
-    hdr = [Paragraph(t, TH) for t in
-           ["#", "Risk / Category", "Inherent", "Residual", "Recommended Mitigation", "Owner / Actions"]]
-    col_w = [CW * p for p in [0.04, 0.26, 0.09, 0.09, 0.30, 0.22]]
-    rows = [hdr]
+        # We put a page break before the CRAID log
+        story.append(PageBreak())
 
-    ordered = sorted(risks, key=lambda r: RATING_ORDER.get(r.residual_rating or "", 9))
-    for idx, r in enumerate(ordered, start=1):
-        inh_c = RATING_HEX.get(r.inherent_rating or "", "#546E7A")
-        res_c = RATING_HEX.get(r.residual_rating or "", "#546E7A")
-        risk_cell = Paragraph(
-            f"<b>{_esc((r.title or '')[:120])}</b><br/>"
-            f"<font size='6.5' color='#757575'>{_esc(r.category or '—')} · "
-            f"L{r.likelihood or '-'}×I{r.impact or '-'}</font>", TD)
-        actions = r.action_items if isinstance(r.action_items, list) else []
-        action_txt = "<br/>".join(f"• {_esc(str(a))}" for a in actions[:3]) if actions else ""
-        owner_cell = Paragraph(
-            (f"<b>{_esc(r.owner)}</b><br/>" if r.owner else "") + action_txt, TD)
-        rows.append([
-            Paragraph(str(idx), TDC),
-            risk_cell,
-            Paragraph(f"<font color='{inh_c}'><b>{_esc(r.inherent_rating or '—')}</b></font>", TDC),
-            Paragraph(f"<font color='{res_c}'><b>{_esc(r.residual_rating or '—')}</b></font>", TDC),
-            Paragraph(_esc((r.recommended_mitigation or "—")[:400]), TD),
-            owner_cell,
-        ])
+        for cat in categories:
+            cat_risks = [r for r in risks if r.category == cat]
+            if not cat_risks:
+                continue
 
-    if len(rows) == 1:
-        story.append(Paragraph("No risks have been recorded for this assessment.", BODY))
+            story.append(Paragraph(category_titles[cat], SEC))
+            story.append(HRFlowable(width="100%", thickness=1, color=BLUE, spaceAfter=8))
+
+            if cat in ("Risk", "Issue"):
+                hdr = [Paragraph(t, TH) for t in
+                       ["#", "Title / Description", "Inherent", "Residual", "Mitigation / Action", "Owner / Target"]]
+                col_w = [CW * p for p in [0.04, 0.30, 0.09, 0.09, 0.30, 0.18]]
+                rows = [hdr]
+                for idx, r in enumerate(cat_risks, start=1):
+                    inh_c = RATING_HEX.get(r.inherent_rating or "", "#546E7A")
+                    res_c = RATING_HEX.get(r.residual_rating or "", "#546E7A")
+                    title_desc = Paragraph(
+                        f"<b>{_esc(r.title or '')}</b><br/>"
+                        f"<font size='7' color='#555555'>{_esc(r.description or '')}</font>", TD)
+
+                    target_txt = f"<br/><font size='7' color='#757575'>Due: {r.target_date}</font>" if r.target_date else ""
+                    owner_cell = Paragraph(f"<b>{_esc(r.owner or '—')}</b>{target_txt}", TD)
+
+                    rows.append([
+                        Paragraph(str(idx), TDC),
+                        title_desc,
+                        Paragraph(f"<font color='{inh_c}'><b>{_esc(r.inherent_rating or '—')}</b></font>", TDC),
+                        Paragraph(f"<font color='{res_c}'><b>{_esc(r.residual_rating or '—')}</b></font>", TDC),
+                        Paragraph(_esc(r.recommended_mitigation or "—"), TD),
+                        owner_cell,
+                    ])
+            else:
+                # Changes, Actions, Decisions/Dependencies
+                hdr = [Paragraph(t, TH) for t in
+                       ["#", "Title / Description", "Existing Controls / Status", "Management Plan / Actions", "Owner / Target"]]
+                col_w = [CW * p for p in [0.04, 0.36, 0.21, 0.21, 0.18]]
+                rows = [hdr]
+                for idx, r in enumerate(cat_risks, start=1):
+                    title_desc = Paragraph(
+                        f"<b>{_esc(r.title or '')}</b><br/>"
+                        f"<font size='7' color='#555555'>{_esc(r.description or '')}</font>", TD)
+
+                    target_txt = f"<br/><font size='7' color='#757575'>Due: {r.target_date}</font>" if r.target_date else ""
+                    owner_cell = Paragraph(f"<b>{_esc(r.owner or '—')}</b>{target_txt}", TD)
+
+                    rows.append([
+                        Paragraph(str(idx), TDC),
+                        title_desc,
+                        Paragraph(_esc(r.existing_controls or "—"), TD),
+                        Paragraph(_esc(r.recommended_mitigation or "—"), TD),
+                        owner_cell,
+                    ])
+
+            tbl = Table(rows, colWidths=col_w, repeatRows=1)
+            tbl.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), BLUE),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [WHITE, LGRAY]),
+                ("GRID", (0, 0), (-1, -1), 0.3, MGRAY),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("TOPPADDING", (0, 0), (-1, -1), 5), ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ("LEFTPADDING", (0, 0), (-1, -1), 4), ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ]))
+            story.append(KeepTogether([tbl]))
+            story.append(Spacer(1, 0.5 * cm))
     else:
-        tbl = Table(rows, colWidths=col_w, repeatRows=1)
-        tbl.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), BLUE),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [WHITE, LGRAY]),
-            ("GRID", (0, 0), (-1, -1), 0.3, MGRAY),
-            ("ALIGN", (2, 0), (3, -1), "CENTER"),
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-            ("LEFTPADDING", (0, 0), (-1, -1), 4), ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-        ]))
-        story.append(KeepTogether([tbl]))
+        story.append(PageBreak())
+        story.append(Paragraph("Risk Register", SEC))
+        story.append(HRFlowable(width="100%", thickness=1, color=BLUE, spaceAfter=8))
+
+        hdr = [Paragraph(t, TH) for t in
+               ["#", "Risk / Category", "Inherent", "Residual", "Recommended Mitigation", "Owner / Actions"]]
+        col_w = [CW * p for p in [0.04, 0.26, 0.09, 0.09, 0.30, 0.22]]
+        rows = [hdr]
+
+        ordered = sorted(risks, key=lambda r: RATING_ORDER.get(r.residual_rating or "", 9))
+        for idx, r in enumerate(ordered, start=1):
+            inh_c = RATING_HEX.get(r.inherent_rating or "", "#546E7A")
+            res_c = RATING_HEX.get(r.residual_rating or "", "#546E7A")
+            risk_cell = Paragraph(
+                f"<b>{_esc((r.title or '')[:120])}</b><br/>"
+                f"<font size='6.5' color='#757575'>{_esc(r.category or '—')} · "
+                f"L{r.likelihood or '-'}×I{r.impact or '-'}</font>", TD)
+            actions = r.action_items if isinstance(r.action_items, list) else []
+            action_txt = "<br/>".join(f"• {_esc(str(a))}" for a in actions[:3]) if actions else ""
+            owner_cell = Paragraph(
+                (f"<b>{_esc(r.owner)}</b><br/>" if r.owner else "") + action_txt, TD)
+            rows.append([
+                Paragraph(str(idx), TDC),
+                risk_cell,
+                Paragraph(f"<font color='{inh_c}'><b>{_esc(r.inherent_rating or '—')}</b></font>", TDC),
+                Paragraph(f"<font color='{res_c}'><b>{_esc(r.residual_rating or '—')}</b></font>", TDC),
+                Paragraph(_esc((r.recommended_mitigation or "—")[:400]), TD),
+                owner_cell,
+            ])
+
+        if len(rows) == 1:
+            story.append(Paragraph("No risks have been recorded for this assessment.", BODY))
+        else:
+            tbl = Table(rows, colWidths=col_w, repeatRows=1)
+            tbl.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), BLUE),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [WHITE, LGRAY]),
+                ("GRID", (0, 0), (-1, -1), 0.3, MGRAY),
+                ("ALIGN", (2, 0), (3, -1), "CENTER"),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ("LEFTPADDING", (0, 0), (-1, -1), 4), ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ]))
+            story.append(KeepTogether([tbl]))
 
     doc.build(story)

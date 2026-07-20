@@ -28,9 +28,9 @@ interface OllamaModel {
 }
 
 const CLOUD_MODELS = [
-  { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro (Recommended)' },
-  { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Fast)' },
-  { value: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash-Lite (Efficiency)' },
+  { value: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash (Recommended)' },
+  { value: 'gemini-3.1-flash', label: 'Gemini 3.1 Flash (Fast)' },
+  { value: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash-Lite (Efficiency)' },
 ]
 
 const DEFAULT_MODEL = CLOUD_MODELS[0].value

@@ -46,6 +46,7 @@ class ProjectRiskAssessmentCreate(BaseModel):
     description: Optional[str] = None
     assessor: Optional[str] = None
     period: Optional[str] = None
+    report_format: Optional[str] = "Standard"
 
 
 class ProjectRiskAssessmentUpdate(BaseModel):
@@ -55,6 +56,7 @@ class ProjectRiskAssessmentUpdate(BaseModel):
     period: Optional[str] = None
     status: Optional[str] = None
     executive_summary: Optional[str] = None
+    report_format: Optional[str] = None
     # When provided, replaces the full risk register (used by the editor's save).
     risks: Optional[List[ProjectRiskCreate]] = None
 
@@ -70,6 +72,7 @@ class ProjectRiskAssessmentSummary(BaseModel):
     overall_residual_rating: Optional[str] = None
     risk_count: int = 0
     open_actions: int = 0
+    report_format: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
@@ -85,6 +88,7 @@ class ProjectRiskAssessmentDetail(BaseModel):
     overall_inherent_rating: Optional[str] = None
     overall_residual_rating: Optional[str] = None
     ai_model: Optional[str] = None
+    report_format: Optional[str] = None
     created_by: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None

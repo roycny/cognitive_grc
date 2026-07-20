@@ -7,8 +7,13 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Divider,
+  FormControl,
   IconButton,
+  InputLabel,
+  MenuItem,
   Paper,
+  Select,
   Skeleton,
   Stack,
   Table,
@@ -20,10 +25,12 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import { Plus, ShieldAlert, Trash2 } from 'lucide-react'
+import type { SelectChangeEvent } from '@mui/material'
+import { Plus, ShieldAlert, Trash2, Upload, Sparkles } from 'lucide-react'
 import Layout from '../components/Layout'
 import { api } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
+import { AI_MODEL_KEY } from './SettingsPage'
 
 export interface ProjectRiskSummary {
   id: number
@@ -83,7 +90,20 @@ function formatDate(iso?: string | null): string {
   return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString()
 }
 
-const EMPTY_DRAFT = { project_name: '', period: '', assessor: '', description: '' }
+const getTodayDateString = () => {
+  const today = new Date()
+  const yyyy = today.getFullYear()
+  const mm = String(today.getMonth() + 1).padStart(2, '0')
+  const dd = String(today.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
+
+const getEmptyDraft = () => ({
+  project_name: '',
+  period: getTodayDateString(),
+  assessor: '',
+  description: '',
+})
 
 export default function ProjectRiskAssessmentsPage() {
   const navigate = useNavigate()
@@ -93,9 +113,13 @@ export default function ProjectRiskAssessmentsPage() {
   const [rows, setRows] = useState<ProjectRiskSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [createOpen, setCreateOpen] = useState(false)
-  const [draft, setDraft] = useState(EMPTY_DRAFT)
+  const [draft, setDraft] = useState(getEmptyDraft)
   const [saving, setSaving] = useState(false)
   const [deleteId, setDeleteId] = useState<number | null>(null)
+
+  // Document upload state on creation
+  const [files, setFiles] = useState<File[]>([])
+  const [reportFormat, setReportFormat] = useState('Standard')
 
   const fetchRows = async () => {
     setLoading(true)
@@ -117,9 +141,27 @@ export default function ProjectRiskAssessmentsPage() {
     if (!draft.project_name.trim()) return
     setSaving(true)
     try {
-      const { data } = await api.post<{ id: number }>('/project-risk/assessments', draft)
+      const { data } = await api.post<{ id: number }>('/project-risk/assessments', {
+        ...draft,
+        report_format: reportFormat,
+      })
+
+      if (files.length > 0) {
+        const activeModel = localStorage.getItem(AI_MODEL_KEY) || 'gemini-3.5-flash'
+        const formData = new FormData()
+        files.forEach((f) => formData.append('files', f))
+        formData.append('model_name', activeModel)
+        formData.append('report_format', reportFormat)
+
+        await api.post(`/project-risk/assessments/${data.id}/ai-assess`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
+      }
+
       setCreateOpen(false)
-      setDraft(EMPTY_DRAFT)
+      setDraft(getEmptyDraft())
+      setFiles([])
+      setReportFormat('Standard')
       navigate(`/assessments/project-risk/${data.id}`)
     } catch (err) {
       console.error('Failed to create project risk assessment', err)
@@ -281,10 +323,12 @@ export default function ProjectRiskAssessmentsPage() {
             />
             <TextField
               label="Assessment period"
-              placeholder="e.g. FY2026 Q2"
+              type="date"
+              InputLabelProps={{ shrink: true }}
               value={draft.period}
               onChange={(e) => setDraft((d) => ({ ...d, period: e.target.value }))}
               fullWidth
+              required
             />
             <TextField
               label="Lead assessor"
@@ -300,15 +344,68 @@ export default function ProjectRiskAssessmentsPage() {
               multiline
               rows={2}
             />
-            <Typography variant="caption" color="text.secondary">
-              After creating, upload project documents and let AI assess the risk, or build the register manually.
+            <Divider sx={{ my: 1 }} />
+            <Typography variant="subtitle2" fontWeight={700}>
+              AI Assessment (Optional)
             </Typography>
+            <Box
+              sx={{
+                border: '1px dashed',
+                borderColor: 'divider',
+                borderRadius: 1.5,
+                p: 2,
+                textAlign: 'center',
+                bgcolor: 'action.hover',
+                cursor: 'pointer',
+              }}
+              component="label"
+            >
+              <input
+                type="file"
+                multiple
+                accept=".pdf,.txt,.md"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  if (e.target.files) setFiles(Array.from(e.target.files))
+                }}
+              />
+              <Upload size={24} style={{ margin: '0 auto 8px', opacity: 0.7 }} />
+              <Typography variant="caption" display="block" fontWeight={600}>
+                Upload project documentation (PDF, TXT, MD)
+              </Typography>
+              {files.length > 0 && (
+                <Typography variant="caption" color="primary" sx={{ mt: 1, display: 'block', fontWeight: 700 }}>
+                  {files.length} file(s) selected
+                </Typography>
+              )}
+            </Box>
+
+            <FormControl fullWidth size="small">
+              <InputLabel id="format-label">Assessment Format</InputLabel>
+              <Select
+                labelId="format-label"
+                label="Assessment Format"
+                value={reportFormat}
+                onChange={(e: SelectChangeEvent) => setReportFormat(e.target.value)}
+              >
+                <MenuItem value="Standard">Standard Risk Matrix</MenuItem>
+                <MenuItem value="CRAID">CRAID Log</MenuItem>
+              </Select>
+            </FormControl>
           </Stack>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setCreateOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={handleCreate} disabled={saving || !draft.project_name.trim()}>
-            {saving ? 'Creating…' : 'Create & open'}
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button onClick={() => {
+            setCreateOpen(false)
+            setFiles([])
+          }}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={handleCreate}
+            disabled={saving || !draft.project_name.trim()}
+            startIcon={files.length > 0 ? <Sparkles size={16} /> : undefined}
+          >
+            {saving ? 'Creating & Assessing…' : files.length > 0 ? 'Create & Assess' : 'Create'}
           </Button>
         </DialogActions>
       </Dialog>

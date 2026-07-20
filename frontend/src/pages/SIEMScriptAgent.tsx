@@ -9,6 +9,7 @@ import {
     MenuItem,
     Paper,
     Snackbar,
+    Stack,
     TextField,
     Tooltip,
     Typography,
@@ -17,6 +18,7 @@ import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import SendIcon from '@mui/icons-material/Send';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
+import SaveIcon from '@mui/icons-material/Save';
 import Layout from '../components/Layout';
 import { api } from '../api/client';
 import { AI_MODEL_KEY } from './SettingsPage';
@@ -30,6 +32,45 @@ type ScriptType = 'AQL Query' | 'Python (API Script)' | 'YARA Rule' | 'Sigma Rul
 const SCRIPT_TYPES: ScriptType[] = ['AQL Query', 'Python (API Script)', 'YARA Rule', 'Sigma Rule'];
 
 const TIMEFRAMES = ['Last 15 Mins', 'Last 1 Hour', 'Last 24 Hours', 'Last 7 Days', 'Last 30 Days', 'Custom'];
+
+interface SampleScenario {
+    name: string;
+    goal: string;
+    scriptType: ScriptType;
+    timeframe: string;
+    logSources: string;
+}
+
+const SAMPLES: SampleScenario[] = [
+    {
+        name: 'SSH Brute Force',
+        goal: 'Identify successful logins after multiple failed attempts. We want to find cases where a source IP had at least 5 login failures followed by a login success within a 15-minute window.',
+        scriptType: 'AQL Query',
+        timeframe: 'Last 24 Hours',
+        logSources: 'Linux Auth Logs, SSH Daemon',
+    },
+    {
+        name: 'PowerShell Download',
+        goal: 'Detect execution of encoded PowerShell commands or commands containing Net.WebClient or DownloadString in process command lines, which indicate potential remote payload execution.',
+        scriptType: 'Sigma Rule',
+        timeframe: 'Last 24 Hours',
+        logSources: 'Windows Security Event ID 4688, Sysmon Event ID 1',
+    },
+    {
+        name: 'QRadar Offense API',
+        goal: 'Retrieve all open high-severity offenses from QRadar, fetch the associated source IP addresses, and write them to a local CSV file for analyst triage.',
+        scriptType: 'Python (API Script)',
+        timeframe: 'Last 7 Days',
+        logSources: 'QRadar API Gateway',
+    },
+    {
+        name: 'YARA Cobalt Strike',
+        goal: 'Write a YARA rule targeting memory structures of a Cobalt Strike beacon, specifically looking for the string pattern ".key" config offset, common default user agents, and sleep telemetry.',
+        scriptType: 'YARA Rule',
+        timeframe: 'Custom',
+        logSources: 'Endpoint Memory Dump',
+    }
+];
 
 // Comment prefix used for the editor placeholder / error lines, per format.
 const COMMENT_PREFIX: Record<ScriptType, string> = {
@@ -46,7 +87,7 @@ interface ChatMessage {
 
 const PLACEHOLDER = '-- The generated script will appear here';
 
-const getSavedModel = () => localStorage.getItem(AI_MODEL_KEY) || 'gemini-2.5-pro';
+const getSavedModel = () => localStorage.getItem(AI_MODEL_KEY) || 'gemini-3.5-flash';
 
 // ---------------------------------------------------------------------------
 // Component
@@ -84,6 +125,15 @@ export default function SIEMScriptAgent() {
         if (e.target.files && e.target.files[0]) {
             setIocFile(e.target.files[0]);
         }
+    };
+
+    const handleLoadSample = (sample: SampleScenario) => {
+        setGoal(sample.goal);
+        setScriptType(sample.scriptType);
+        setTimeframe(sample.timeframe);
+        setLogSources(sample.logSources);
+        setIocFile(null);
+        setSnack({ msg: `Loaded sample scenario: ${sample.name}`, sev: 'info' });
     };
 
     const handleGenerate = async () => {
@@ -163,7 +213,27 @@ export default function SIEMScriptAgent() {
         setTimeout(() => setCodeCopied(false), 2000);
     };
 
-    const editorFilename = `GENERATED_${scriptType.toUpperCase().replace(/[^A-Z]/g, '')}.txt`;
+    const EXTENSIONS: Record<ScriptType, string> = {
+        'AQL Query': 'txt',
+        'Python (API Script)': 'py',
+        'YARA Rule': 'yar',
+        'Sigma Rule': 'yml',
+    };
+    const fileExtension = EXTENSIONS[scriptType];
+    const cleanScriptType = scriptType.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+    const editorFilename = `GENERATED_${cleanScriptType}.${fileExtension}`;
+
+    const handleSave = () => {
+        if (!hasScript) return;
+        const element = document.createElement('a');
+        const file = new Blob([generatedCode], { type: 'text/plain;charset=utf-8' });
+        element.href = URL.createObjectURL(file);
+        element.download = editorFilename;
+        document.body.appendChild(element);
+        element.click();
+        document.body.removeChild(element);
+        setSnack({ msg: 'Script saved successfully.', sev: 'success' });
+    };
 
     return (
         <Layout title="SIEM Script Agent">
@@ -198,6 +268,25 @@ export default function SIEMScriptAgent() {
                             Script Configuration
                             <Chip size="small" label="Agent Ready" color="success" variant="outlined" />
                         </Typography>
+
+                        <Box>
+                            <Typography variant="caption" fontWeight="bold" sx={{ display: 'block', mb: 1, color: 'text.secondary', textTransform: 'uppercase', fontSize: 10, letterSpacing: 0.5 }}>
+                                Try a Sample Scenario
+                            </Typography>
+                            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ gap: 1 }}>
+                                {SAMPLES.map((s, idx) => (
+                                    <Chip
+                                        key={idx}
+                                        label={s.name}
+                                        size="small"
+                                        onClick={() => handleLoadSample(s)}
+                                        variant="outlined"
+                                        color="primary"
+                                        sx={{ cursor: 'pointer', borderRadius: 1 }}
+                                    />
+                                ))}
+                            </Stack>
+                        </Box>
 
                         <TextField
                             label="Investigation Goal"
@@ -306,19 +395,34 @@ export default function SIEMScriptAgent() {
                                 <Typography variant="subtitle2" sx={{ color: 'grey.300', fontFamily: 'monospace' }}>
                                     {editorFilename}
                                 </Typography>
-                                <Tooltip title={codeCopied ? 'Copied' : 'Copy code'}>
-                                    <span>
-                                        <Button
-                                            size="small"
-                                            onClick={handleCopy}
-                                            disabled={!hasScript}
-                                            startIcon={<ContentCopyIcon fontSize="small" />}
-                                            sx={{ color: 'grey.300', textTransform: 'none', '&:hover': { bgcolor: 'grey.800' } }}
-                                        >
-                                            {codeCopied ? 'Copied' : 'Copy'}
-                                        </Button>
-                                    </span>
-                                </Tooltip>
+                                <Box sx={{ display: 'flex', gap: 1 }}>
+                                    <Tooltip title={codeCopied ? 'Copied' : 'Copy code'}>
+                                        <span>
+                                            <Button
+                                                size="small"
+                                                onClick={handleCopy}
+                                                disabled={!hasScript}
+                                                startIcon={<ContentCopyIcon fontSize="small" />}
+                                                sx={{ color: 'grey.300', textTransform: 'none', '&:hover': { bgcolor: 'grey.800' } }}
+                                            >
+                                                {codeCopied ? 'Copied' : 'Copy'}
+                                            </Button>
+                                        </span>
+                                    </Tooltip>
+                                    <Tooltip title="Save script to file">
+                                        <span>
+                                            <Button
+                                                size="small"
+                                                onClick={handleSave}
+                                                disabled={!hasScript}
+                                                startIcon={<SaveIcon fontSize="small" />}
+                                                sx={{ color: 'grey.300', textTransform: 'none', '&:hover': { bgcolor: 'grey.800' } }}
+                                            >
+                                                Save
+                                            </Button>
+                                        </span>
+                                    </Tooltip>
+                                </Box>
                             </Box>
 
                             <Box

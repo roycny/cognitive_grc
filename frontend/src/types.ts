@@ -94,3 +94,40 @@ export interface GlbaAssessmentDetail {
   updated_at?: string | null
   responses: GlbaControlResponse[]
 }
+
+export interface ProjectRisk {
+  id: number
+  title: string
+  category?: string | null
+  description?: string | null
+  likelihood?: number | null
+  impact?: number | null
+  inherent_rating?: string | null
+  existing_controls?: string | null
+  recommended_mitigation?: string | null
+  residual_likelihood?: number | null
+  residual_impact?: number | null
+  residual_rating?: string | null
+  owner?: string | null
+  target_date?: string | null
+  action_items?: string[] | null
+  is_completed: boolean
+}
+
+export interface ProjectRiskAssessmentDetail {
+  id: number
+  project_name: string
+  description?: string | null
+  assessor?: string | null
+  period?: string | null
+  status: string
+  executive_summary?: string | null
+  overall_inherent_rating?: string | null
+  overall_residual_rating?: string | null
+  ai_model?: string | null
+  report_format?: string | null
+  created_by?: string | null
+  created_at?: string | null
+  updated_at?: string | null
+  risks: ProjectRisk[]
+}

@@ -86,7 +86,7 @@ const SEVERITY_ORDER: Record<string, number> = { High: 0, Medium: 1, Low: 2 };
 const ACCEPTED = '.pdf,.txt,.md';
 
 /** The AI model selected in Settings (cloud "gemini-*" or local "ollama/<name>"). */
-const getSavedModel = () => localStorage.getItem(AI_MODEL_KEY) || 'gemini-2.5-pro';
+const getSavedModel = () => localStorage.getItem(AI_MODEL_KEY) || 'gemini-3.5-flash';
 
 function SeverityChip({ severity }: { severity: string }) {
     return (

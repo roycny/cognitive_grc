@@ -40,6 +40,7 @@ class ProjectRiskAssessment(Base):
     overall_inherent_rating = Column(String, nullable=True)   # Low | Medium | High | Critical
     overall_residual_rating = Column(String, nullable=True)
     ai_model = Column(String, nullable=True)           # model used for the AI assessment
+    report_format = Column(String, nullable=True, default="Standard")
 
     created_by = Column(String, nullable=True)
     created_at = Column(String, nullable=True)         # ISO-8601 timestamp

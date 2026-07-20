@@ -50,6 +50,9 @@ api.interceptors.request.use((config) => {
 export const glbaReportUrl = (assessmentId: number): string =>
   `${baseURL.replace(/\/$/, '')}/glba/assessments/${assessmentId}/report`
 
+export const projectRiskReportUrl = (assessmentId: number): string =>
+  `${baseURL.replace(/\/$/, '')}/project-risk/assessments/${assessmentId}/report`
+
 /** Fired when a refresh fails — the app uses this to drop back to /login. */
 export const SESSION_EXPIRED_EVENT = 'auth:session-expired'
 

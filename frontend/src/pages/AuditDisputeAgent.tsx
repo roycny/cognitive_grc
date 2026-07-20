@@ -108,7 +108,7 @@ const RISK_COLOR: Record<string, { bg: string; fg: string }> = {
 };
 
 const ACCEPTED = '.pdf,.txt,.md';
-const getSavedModel = () => localStorage.getItem(AI_MODEL_KEY) || 'gemini-2.5-pro';
+const getSavedModel = () => localStorage.getItem(AI_MODEL_KEY) || 'gemini-3.5-flash';
 
 const INPUT_TYPES = [
     { value: 'audit_request', label: 'Audit Request / Information Request' },

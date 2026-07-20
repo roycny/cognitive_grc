@@ -8,6 +8,8 @@ import LoggingPage from './pages/LoggingPage'
 import SettingsPage from './pages/SettingsPage'
 import GLBAAssessmentsPage from './pages/GLBAAssessmentsPage'
 import GLBAAssessmentPage from './pages/GLBAAssessmentPage'
+import ProjectRiskAssessmentsPage from './pages/ProjectRiskAssessmentsPage'
+import ProjectRiskAssessmentPage from './pages/ProjectRiskAssessmentPage'
 import KRIsPage from './pages/KRIsPage'
 import SCAAgent from './pages/SCAAgent'
 import SIEMScriptAgent from './pages/SIEMScriptAgent'
@@ -80,6 +82,22 @@ export default function App() {
         element={
           <ProtectedRoute>
             <GLBAAssessmentPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/assessments/project-risk"
+        element={
+          <ProtectedRoute>
+            <ProjectRiskAssessmentsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/assessments/project-risk/:id"
+        element={
+          <ProtectedRoute>
+            <ProjectRiskAssessmentPage />
           </ProtectedRoute>
         }
       />

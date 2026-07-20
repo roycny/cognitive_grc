@@ -112,6 +112,7 @@ def _summarize(a: ProjectRiskAssessment) -> ProjectRiskAssessmentSummary:
         overall_residual_rating=a.overall_residual_rating,
         risk_count=len(a.risks),
         open_actions=sum(1 for r in a.risks if not r.is_completed),
+        report_format=a.report_format,
         created_at=a.created_at,
         updated_at=a.updated_at,
     )
@@ -190,6 +191,7 @@ def create_assessment(
         assessor=body.assessor or current_user.username,
         period=body.period,
         status="Draft",
+        report_format=body.report_format or "Standard",
         created_by=current_user.username,
         created_at=now,
         updated_at=now,
@@ -231,7 +233,7 @@ def update_assessment(
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
 
-    for field in ("project_name", "description", "assessor", "period", "status", "executive_summary"):
+    for field in ("project_name", "description", "assessor", "period", "status", "executive_summary", "report_format"):
         value = getattr(body, field)
         if value is not None:
             setattr(assessment, field, value)
@@ -289,6 +291,7 @@ async def ai_assess(
     files: List[UploadFile] = File(default=[]),
     pasted_text: str = Form(default=""),
     model_name: str = Form(default="ollama/llama3.1"),
+    report_format: str = Form(default="Standard"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -316,6 +319,7 @@ async def ai_assess(
         project_name=assessment.project_name,
         document_text=combined,
         model_name=model_name,
+        report_format=report_format,
     )
 
     # Persist: replace the register with the AI-generated risks.
@@ -330,6 +334,7 @@ async def ai_assess(
     if assessment.risks:
         assessment.status = "Assessed"
     assessment.ai_model = model_name
+    assessment.report_format = report_format
     assessment.updated_at = _now()
     db.commit()
     db.refresh(assessment)
@@ -346,7 +351,7 @@ async def ai_assess(
 # PDF report
 # ---------------------------------------------------------------------------
 
-@router.post("/assessments/{assessment_id}/report")
+@router.get("/assessments/{assessment_id}/report")
 @limiter.limit("10/minute")
 def generate_report(
     request: Request,
