@@ -13,6 +13,44 @@ respond to audit requests and dispute audit observations with OCC CSW and NIST
 CSF 2.0 control references — all driven by either a locally hosted Ollama model
 or a cloud model, with graceful fallback when no provider is configured.
 
+## Demo & Platform Showcase
+
+### 📊 Main Dashboard & Platform Overview
+![Main Dashboard](docs/screenshots/dashboard_overview.png)
+
+### 🛡️ Core Governance, Risk & Compliance Modules
+| Audit & Exam Registry | Issue Tracker |
+| :---: | :---: |
+| ![Audit Registry](docs/screenshots/audit_exam_registry.png) | ![Issue Tracker](docs/screenshots/issue_tracker.png) |
+
+| Key Risk Indicators (KRI) Tracker | GLBA Information Security Program Assessment |
+| :---: | :---: |
+| ![KRI Tracker](docs/screenshots/kri_tracker.png) | ![GLBA Assessment Detail](docs/screenshots/glba_assessment_detail.png) |
+
+### 🤖 AI Security & Compliance Tooling
+| SCA Vulnerability Triage & Analysis | Software Composition Analysis PDF Report |
+| :---: | :---: |
+| ![SCA Triage](docs/screenshots/sca_agent_report.png) | ![SCA PDF Report](docs/screenshots/sca_pdf_report.png) |
+
+| SIEM / SOC Detection Script Agent | Policy Gap Analyst |
+| :---: | :---: |
+| ![SIEM Script Agent](docs/screenshots/siem_script_agent.png) | ![Policy Gap Analyst](docs/screenshots/policy_gap_analyst.png) |
+
+| Audit Dispute & Response Agent | Quantified Project Risk (CRAID Log) |
+| :---: | :---: |
+| ![Audit Dispute Agent](docs/screenshots/audit_dispute_agent.png) | ![Project Risk Detail](docs/screenshots/project_risk_detail.png) |
+
+### ⚙️ System & Administration
+| User Management (RBAC) | Audit Activity Logging |
+| :---: | :---: |
+| ![User Management](docs/screenshots/user_management.png) | ![Audit Log](docs/screenshots/audit_activity_log.png) |
+
+| Platform AI Model Settings | Docker Container Infrastructure |
+| :---: | :---: |
+| ![Platform Settings](docs/screenshots/platform_settings.png) | ![Docker Containers](docs/screenshots/docker_containers.png) |
+
+---
+
 ## Tech Stack
 
 ### Backend
